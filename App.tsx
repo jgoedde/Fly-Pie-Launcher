@@ -284,7 +284,4 @@ const styles = StyleSheet.create({
         height: 88,
         transform: [{ translateX: "-50%" }, { translateY: "-50%" }],
     },
-    hoveredIcon: {
-        backgroundColor: "dodgerblue", // Change color when hovered
-    },
 });
