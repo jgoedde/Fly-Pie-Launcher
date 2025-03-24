@@ -1,14 +1,25 @@
-import React, {useCallback, useMemo, useState} from 'react';
-import {Dimensions, StyleSheet, Text, Vibration, View} from 'react-native';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {
+    Dimensions,
+    Image,
+    StyleSheet,
+    Text,
+    Vibration,
+    View,
+} from 'react-native';
 import {
     GestureHandlerRootView,
     PanGestureHandler,
     State,
 } from 'react-native-gesture-handler';
+import {AppDetail} from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
+import {InstalledApps, RNLauncherKitHelper} from 'react-native-launcher-kit';
+import {HandlerStateChangeEvent} from 'react-native-gesture-handler/lib/typescript/handlers/gestureHandlerCommon';
+import type {PanGestureHandlerEventPayload} from 'react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload';
 
 type Point = {x: number; y: number};
 
-type AppOrSomething = {name: string; packageId: string};
+type AppOrSomething = {name: string; packageId: string; iconUrl: string};
 
 type AppWithDistance = AppOrSomething & {
     left: number;
@@ -19,22 +30,13 @@ type AppWithDistance = AppOrSomething & {
 const CIRCLE_RADIUS = 111; // Distance from center
 const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 
-const apps: AppOrSomething[] = [
-    {name: 'W', packageId: 'com.whatsapp'},
-    {name: 'M', packageId: 'TODO'},
-    {name: 'A', packageId: 'TODO'},
-    {name: 'B', packageId: 'TODO'},
-    {name: 'C', packageId: 'TODO'},
-    {name: 'D', packageId: 'TODO'},
-    {name: 'E', packageId: 'TODO'},
-];
-
-type AppPosition = {left: number; top: number; name: string; packageId: string};
+type AppPosition = AppOrSomething & {left: number; top: number};
 
 /** Calculates positions for the apps around the center */
 const calculateAppPositions: (
+    apps: AppOrSomething[],
     center: Point | undefined,
-) => AppPosition[] = center => {
+) => AppPosition[] = (apps, center) => {
     if (!center) {
         return [];
     }
@@ -46,6 +48,7 @@ const calculateAppPositions: (
             top: center.y + CIRCLE_RADIUS * Math.sin(angle),
             name: app.name,
             packageId: app.packageId,
+            iconUrl: app.iconUrl,
         };
     });
 };
@@ -72,6 +75,33 @@ const findClosestApp: (
     return closestApp;
 };
 
+function useInstalledApps() {
+    const [appDetails, setAppDetails] = useState<AppDetail[]>([]);
+
+    const queryApps = useCallback(async () => {
+        const allApps = await InstalledApps.getApps({
+            includeVersion: false,
+            includeAccentColor: true,
+        });
+
+        setAppDetails(allApps.slice(0, 5));
+    }, []);
+
+    useEffect(() => {
+        void queryApps();
+    }, [queryApps]);
+
+    const apps = useMemo<AppOrSomething[]>(() => {
+        return appDetails.map(a => ({
+            name: a.label,
+            packageId: a.packageName,
+            iconUrl: a.icon,
+        }));
+    }, [appDetails]);
+
+    return apps;
+}
+
 const windowDimensions = Dimensions.get('window');
 
 export default function App() {
@@ -80,49 +110,67 @@ export default function App() {
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
     const [hoveredApp, setHoveredApp] = useState<string | null>(null);
 
-    const appPositions = useMemo(() => calculateAppPositions(center), [center]);
+    const apps = useInstalledApps();
+
+    const appPositions = useMemo(
+        () => calculateAppPositions(apps, center),
+        [apps, center],
+    );
+
+    const onAppSelect = useCallback((app: AppOrSomething) => {
+        console.log(app, 'app');
+        RNLauncherKitHelper.launchApplication(app.packageId);
+    }, []);
+
+    const onPanStart = useCallback(
+        (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
+            let newCenter = {
+                x: event.nativeEvent.x,
+                y: event.nativeEvent.y,
+            };
+
+            // Ensure the pie stays within screen bounds
+            if (newCenter.x + CIRCLE_RADIUS > windowDimensions.width) {
+                newCenter.x = windowDimensions.width - CIRCLE_RADIUS;
+            } else if (newCenter.x - CIRCLE_RADIUS < 0) {
+                newCenter.x = CIRCLE_RADIUS;
+            }
+
+            if (newCenter.y + CIRCLE_RADIUS > windowDimensions.height) {
+                newCenter.y = windowDimensions.height - CIRCLE_RADIUS;
+            } else if (newCenter.y - CIRCLE_RADIUS < 0) {
+                newCenter.y = CIRCLE_RADIUS;
+            }
+
+            setShouldShowPie(true);
+            setHoveredApp(null);
+            setCenter(newCenter);
+        },
+        [],
+    );
+
+    const onPanEnd = useCallback(() => {
+        if (center && finalTouch) {
+            const selectedApp = findClosestApp(finalTouch, appPositions);
+            if (selectedApp && hoveredApp === selectedApp.name) {
+                onAppSelect(selectedApp);
+            }
+        }
+        setShouldShowPie(false);
+        setCenter(undefined);
+        setFinalTouch(undefined);
+        setHoveredApp(null);
+    }, [appPositions, center, finalTouch, hoveredApp, onAppSelect]);
 
     const onHandlerStateChange = useCallback(
-        (event: any) => {
+        (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
             if (event.nativeEvent.state === State.BEGAN) {
-                let newCenter = {
-                    x: event.nativeEvent.x,
-                    y: event.nativeEvent.y,
-                };
-
-                // Ensure the pie stays within screen bounds
-                if (newCenter.x + CIRCLE_RADIUS > windowDimensions.width) {
-                    newCenter.x = windowDimensions.width - CIRCLE_RADIUS;
-                } else if (newCenter.x - CIRCLE_RADIUS < 0) {
-                    newCenter.x = CIRCLE_RADIUS;
-                }
-
-                if (newCenter.y + CIRCLE_RADIUS > windowDimensions.height) {
-                    newCenter.y = windowDimensions.height - CIRCLE_RADIUS;
-                } else if (newCenter.y - CIRCLE_RADIUS < 0) {
-                    newCenter.y = CIRCLE_RADIUS;
-                }
-
-                setShouldShowPie(true);
-                setHoveredApp(null);
-                setCenter(newCenter);
+                onPanStart(event);
             } else if (event.nativeEvent.state === State.END) {
-                if (center && finalTouch) {
-                    const selectedApp = findClosestApp(
-                        finalTouch,
-                        appPositions,
-                    );
-                    if (selectedApp && hoveredApp === selectedApp.name) {
-                        console.log(selectedApp, 'selectedApp');
-                    }
-                }
-                setShouldShowPie(false);
-                setCenter(undefined);
-                setFinalTouch(undefined);
-                setHoveredApp(null);
+                onPanEnd();
             }
         },
-        [center, finalTouch, hoveredApp, appPositions],
+        [onPanEnd, onPanStart],
     );
 
     const onGestureEvent = useCallback(
@@ -162,22 +210,23 @@ export default function App() {
         <GestureHandlerRootView style={styles.container}>
             <PanGestureHandler
                 onGestureEvent={onGestureEvent}
-                onHandlerStateChange={onHandlerStateChange}>
+                onHandlerStateChange={onHandlerStateChange}
+                onCancelled={a => console.log(a, 'a')}>
                 <View style={styles.fullScreen}>
                     <Text>Touch and hold anywhere.</Text>
                     {shouldShowPie &&
                         center &&
                         appPositions.map((item, index) => (
-                            <View
+                            <Image
+                                src={item.iconUrl}
                                 key={index}
                                 style={[
                                     styles.icon,
                                     {left: item.left, top: item.top},
                                     hoveredApp === item.name &&
                                         styles.hoveredIcon,
-                                ]}>
-                                <Text>{item.name}</Text>
-                            </View>
+                                ]}
+                            />
                         ))}
                 </View>
             </PanGestureHandler>
@@ -196,8 +245,8 @@ const styles = StyleSheet.create({
     },
     icon: {
         position: 'absolute',
-        backgroundColor: 'lightblue',
-        borderRadius: '100%',
+        // backgroundColor: 'lightblue',
+        // borderRadius: '100%',
         width: 64,
         height: 64,
         transform: [{translateX: '-50%'}, {translateY: '-50%'}],
