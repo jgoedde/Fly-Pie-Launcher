@@ -1,13 +1,21 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {StyleSheet, Text, Vibration, View} from 'react-native';
 import {
     GestureHandlerRootView,
     PanGestureHandler,
     State,
 } from 'react-native-gesture-handler';
-import {Point} from 'react-native-gesture-handler/lib/typescript/web/interfaces';
 
+type Point = {x: number; y: number};
 type AppOrSomething = {name: string; packageId: string};
+type AppWithDistance = AppOrSomething & {
+    left: number;
+    top: number;
+    distance: number;
+};
+
+const CIRCLE_RADIUS = 111; // Distance from center
+const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 
 const apps: AppOrSomething[] = [
     {name: 'W', packageId: 'com.whatsapp'},
@@ -19,10 +27,47 @@ const apps: AppOrSomething[] = [
     {name: 'E', packageId: 'TODO'},
 ];
 
-const CIRCLE_RADIUS = 111; // Distance from center
-const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
+type AppPosition = {left: number; top: number; name: string; packageId: string};
 
-type AppWithDistance = AppOrSomething & {distance: number};
+/** Calculates positions for the apps around the center */
+const calculateAppPositions: (
+    center: Point | undefined,
+) => AppPosition[] = center => {
+    if (!center) {
+        return [];
+    }
+    return apps.map((app, i) => {
+        const angle = (i / apps.length) * (2 * Math.PI);
+        return {
+            left: center.x + CIRCLE_RADIUS * Math.cos(angle),
+            top: center.y + CIRCLE_RADIUS * Math.sin(angle),
+            name: app.name,
+            packageId: app.packageId,
+        };
+    });
+};
+
+/** Finds the closest app based on the touch position */
+const findClosestApp: (
+    touchPoint: Point,
+    appPositions: AppPosition[],
+) => AppWithDistance | null = (touchPoint, appPositions) => {
+    let closestApp: AppWithDistance | null = null;
+    let minDistance = Infinity;
+
+    appPositions.forEach(app => {
+        const distance = Math.sqrt(
+            Math.pow(touchPoint.x - app.left, 2) +
+                Math.pow(touchPoint.y - app.top, 2),
+        );
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestApp = {...app, distance};
+        }
+    });
+
+    return closestApp;
+};
 
 export default function App() {
     const [shouldShowPie, setShouldShowPie] = useState(false);
@@ -30,44 +75,31 @@ export default function App() {
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
     const [hoveredApp, setHoveredApp] = useState<string | null>(null);
 
-    const getAppPositions = useCallback(() => {
-        if (!center) {
-            return [];
-        }
+    const appPositions = useMemo(() => calculateAppPositions(center), [center]);
 
-        return apps.map((_, i) => {
-            const angle = (i / apps.length) * (2 * Math.PI);
-            return {
-                left: center.x + CIRCLE_RADIUS * Math.cos(angle),
-                top: center.y + CIRCLE_RADIUS * Math.sin(angle),
-                name: apps[i].name,
-                packageId: apps[i].packageId,
-            };
-        });
-    }, [center]);
-
-    const getClosestApp = useCallback<
-        (touchPoint: Point) => AppWithDistance | null
-    >(
-        touchPoint => {
-            const positions = getAppPositions();
-            let closestApp: AppWithDistance | null = null;
-            let minDistance = Infinity;
-
-            positions.forEach(app => {
-                const distance = Math.sqrt(
-                    Math.pow(touchPoint.x - app.left, 2) +
-                        Math.pow(touchPoint.y - app.top, 2),
-                );
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    closestApp = {...app, distance};
+    const onHandlerStateChange = useCallback(
+        (event: any) => {
+            if (event.nativeEvent.state === State.BEGAN) {
+                setShouldShowPie(true);
+                setHoveredApp(null);
+                setCenter({x: event.nativeEvent.x, y: event.nativeEvent.y});
+            } else if (event.nativeEvent.state === State.END) {
+                if (center && finalTouch) {
+                    const selectedApp = findClosestApp(
+                        finalTouch,
+                        appPositions,
+                    );
+                    if (selectedApp && hoveredApp === selectedApp.name) {
+                        console.log(selectedApp, 'selectedApp');
+                    }
                 }
-            });
-
-            return closestApp;
+                setShouldShowPie(false);
+                setCenter(undefined);
+                setFinalTouch(undefined);
+                setHoveredApp(null);
+            }
         },
-        [getAppPositions],
+        [center, finalTouch, hoveredApp, appPositions],
     );
 
     const onGestureEvent = useCallback(
@@ -78,57 +110,30 @@ export default function App() {
             };
             setFinalTouch(touchPoint);
 
-            const closestApp = getClosestApp(touchPoint);
-
+            const closestApp = findClosestApp(touchPoint, appPositions);
             if (closestApp && center) {
                 const distanceToCenter = Math.sqrt(
                     Math.pow(touchPoint.x - center.x, 2) +
                         Math.pow(touchPoint.y - center.y, 2),
                 );
 
-                const isInsidePie = distanceToCenter <= CIRCLE_RADIUS; // Check if inside circle
+                const isInsidePie = distanceToCenter <= CIRCLE_RADIUS;
+                const shouldHover = isInsidePie
+                    ? closestApp.distance <= HOVER_THRESHOLD
+                    : true;
 
-                if (isInsidePie && closestApp.distance <= HOVER_THRESHOLD) {
-                    if (closestApp.name !== hoveredApp) {
-                        setHoveredApp(closestApp.name);
-                        Vibration.vibrate(10); // Short vibration only inside pie
-                    }
-                } else if (!isInsidePie) {
-                    setHoveredApp(closestApp.name); // Outside circle → Auto-select closest
-                    if (closestApp.name !== hoveredApp) {
-                        Vibration.vibrate(10); // Short vibration only inside pie
-                    }
-                } else {
-                    setHoveredApp(null); // Reset if too far inside the pie
+                if (shouldHover && closestApp.name !== hoveredApp) {
+                    setHoveredApp(closestApp.name);
+                    Vibration.vibrate(10);
+                } else if (!shouldHover) {
+                    setHoveredApp(null);
                 }
             } else {
-                setHoveredApp(null); // Reset if no app found
+                setHoveredApp(null);
             }
         },
-        [center, getClosestApp, hoveredApp],
+        [center, appPositions, hoveredApp],
     );
-
-    const onHandlerStateChange = (event: any) => {
-        if (event.nativeEvent.state === State.BEGAN) {
-            setShouldShowPie(true);
-            setHoveredApp(null);
-            setCenter({
-                x: event.nativeEvent.x,
-                y: event.nativeEvent.y,
-            });
-        } else if (event.nativeEvent.state === State.END) {
-            if (center && finalTouch) {
-                const selectedApp = getClosestApp(finalTouch);
-                if (selectedApp && hoveredApp === selectedApp.name) {
-                    console.log(selectedApp, 'selectedApp');
-                }
-            }
-            setShouldShowPie(false);
-            setCenter(undefined);
-            setFinalTouch(undefined);
-            setHoveredApp(null);
-        }
-    };
 
     return (
         <GestureHandlerRootView style={styles.container}>
@@ -139,17 +144,14 @@ export default function App() {
                     <Text>Touch and hold anywhere.</Text>
                     {shouldShowPie &&
                         center &&
-                        getAppPositions().map((item, index) => (
+                        appPositions.map((item, index) => (
                             <View
                                 key={index}
                                 style={[
                                     styles.icon,
-                                    {
-                                        left: item.left,
-                                        top: item.top,
-                                    },
+                                    {left: item.left, top: item.top},
                                     hoveredApp === item.name &&
-                                        styles.hoveredIcon, // Highlight hovered app
+                                        styles.hoveredIcon,
                                 ]}>
                                 <Text>{item.name}</Text>
                             </View>
