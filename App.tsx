@@ -33,7 +33,7 @@ type AppWithDistance = AppOrSomething & {
     distance: number;
 };
 
-const CIRCLE_RADIUS = 111; // Distance from center
+const CIRCLE_RADIUS = 120; // Distance from center
 const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 
 type AppPosition = AppOrSomething & { left: number; top: number };
@@ -44,10 +44,10 @@ const calculateAppPositions: (
     apps: AppOrSomething[]
 ) => AppPosition[] = (center, apps) => {
     return apps.map((app, i) => {
-        const angle = (i / apps.length) * (2 * Math.PI);
+        const angle = (i / apps.length) * (2 * Math.PI) - Math.PI / 2; // Start from top (12 o'clock)
         return {
-            left: center.x + CIRCLE_RADIUS * Math.cos(angle),
-            top: center.y + CIRCLE_RADIUS * Math.sin(angle),
+            left: Math.round(center.x + CIRCLE_RADIUS * Math.cos(angle)),
+            top: Math.round(center.y + CIRCLE_RADIUS * Math.sin(angle)),
             name: app.name,
             packageId: app.packageId,
             iconUrl: app.iconUrl,
@@ -95,6 +95,7 @@ function useInstalledApps() {
             allApps[9],
             allApps[15],
             allApps[55],
+            allApps[56],
         ]);
     }, []);
 
@@ -130,7 +131,6 @@ export default function App() {
     );
 
     const onAppSelect = useCallback((app: AppOrSomething) => {
-        console.log(app, "app");
         RNLauncherKitHelper.launchApplication(app.packageId);
     }, []);
 
@@ -143,15 +143,15 @@ export default function App() {
 
             // Ensure the pie stays within screen bounds
             if (newCenter.x + CIRCLE_RADIUS > windowDimensions.width) {
-                newCenter.x = windowDimensions.width - CIRCLE_RADIUS;
+                newCenter.x = windowDimensions.width - (CIRCLE_RADIUS + 30);
             } else if (newCenter.x - CIRCLE_RADIUS < 0) {
-                newCenter.x = CIRCLE_RADIUS;
+                newCenter.x = CIRCLE_RADIUS + 30;
             }
 
             if (newCenter.y + CIRCLE_RADIUS > windowDimensions.height) {
-                newCenter.y = windowDimensions.height - CIRCLE_RADIUS;
+                newCenter.y = windowDimensions.height - CIRCLE_RADIUS - 30;
             } else if (newCenter.y - CIRCLE_RADIUS < 0) {
-                newCenter.y = CIRCLE_RADIUS;
+                newCenter.y = CIRCLE_RADIUS + 30;
             }
 
             setShouldShowPie(true);
@@ -252,8 +252,8 @@ export default function App() {
                             >
                                 <Image
                                     style={{
-                                        width: "75%",
-                                        height: "75%",
+                                        width: "66%",
+                                        height: "66%",
                                         margin: "auto",
                                     }}
                                     src={item.iconUrl}
