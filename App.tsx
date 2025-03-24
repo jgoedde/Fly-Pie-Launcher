@@ -248,8 +248,8 @@ export default function App() {
     const onGestureEvent = useCallback(
         (event: GestureEvent<PanGestureHandlerEventPayload>) => {
             const touchPoint = {
-                x: event.nativeEvent.x - 10, // Apply offset
-                y: event.nativeEvent.y - 25,
+                x: event.nativeEvent.x,
+                y: event.nativeEvent.y,
             };
             setFinalTouch(touchPoint);
 
