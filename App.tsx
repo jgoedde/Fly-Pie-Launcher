@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Dimensions,
     Image,
@@ -6,20 +6,26 @@ import {
     Text,
     Vibration,
     View,
-} from 'react-native';
+} from "react-native";
 import {
+    GestureEvent,
     GestureHandlerRootView,
     PanGestureHandler,
     State,
-} from 'react-native-gesture-handler';
-import {AppDetail} from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
-import {InstalledApps, RNLauncherKitHelper} from 'react-native-launcher-kit';
-import {HandlerStateChangeEvent} from 'react-native-gesture-handler/lib/typescript/handlers/gestureHandlerCommon';
-import type {PanGestureHandlerEventPayload} from 'react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload';
+} from "react-native-gesture-handler";
+import { AppDetail } from "react-native-launcher-kit/typescript/Interfaces/InstalledApps";
+import { InstalledApps, RNLauncherKitHelper } from "react-native-launcher-kit";
+import { HandlerStateChangeEvent } from "react-native-gesture-handler/lib/typescript/handlers/gestureHandlerCommon";
+import type { PanGestureHandlerEventPayload } from "react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload";
 
-type Point = {x: number; y: number};
+type Point = { x: number; y: number };
 
-type AppOrSomething = {name: string; packageId: string; iconUrl: string};
+type AppOrSomething = {
+    name: string;
+    packageId: string;
+    iconUrl: string;
+    accent: string;
+};
 
 type AppWithDistance = AppOrSomething & {
     left: number;
@@ -30,17 +36,13 @@ type AppWithDistance = AppOrSomething & {
 const CIRCLE_RADIUS = 111; // Distance from center
 const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 
-type AppPosition = AppOrSomething & {left: number; top: number};
+type AppPosition = AppOrSomething & { left: number; top: number };
 
 /** Calculates positions for the apps around the center */
 const calculateAppPositions: (
-    apps: AppOrSomething[],
-    center: Point | undefined,
-) => AppPosition[] = (apps, center) => {
-    if (!center) {
-        return [];
-    }
-
+    center: Point,
+    apps: AppOrSomething[]
+) => AppPosition[] = (center, apps) => {
     return apps.map((app, i) => {
         const angle = (i / apps.length) * (2 * Math.PI);
         return {
@@ -49,6 +51,7 @@ const calculateAppPositions: (
             name: app.name,
             packageId: app.packageId,
             iconUrl: app.iconUrl,
+            accent: app.accent,
         };
     });
 };
@@ -56,19 +59,19 @@ const calculateAppPositions: (
 /** Finds the closest app based on the touch position */
 const findClosestApp: (
     touchPoint: Point,
-    appPositions: AppPosition[],
+    appPositions: AppPosition[]
 ) => AppWithDistance | null = (touchPoint, appPositions) => {
     let closestApp: AppWithDistance | null = null;
     let minDistance = Infinity;
 
-    appPositions.forEach(app => {
+    appPositions.forEach((app) => {
         const distance = Math.sqrt(
             Math.pow(touchPoint.x - app.left, 2) +
-                Math.pow(touchPoint.y - app.top, 2),
+                Math.pow(touchPoint.y - app.top, 2)
         );
         if (distance < minDistance) {
             minDistance = distance;
-            closestApp = {...app, distance};
+            closestApp = { ...app, distance };
         }
     });
 
@@ -84,7 +87,15 @@ function useInstalledApps() {
             includeAccentColor: true,
         });
 
-        setAppDetails(allApps.slice(0, 5));
+        setAppDetails([
+            allApps[0],
+            allApps[21],
+            allApps[12],
+            allApps[45],
+            allApps[9],
+            allApps[15],
+            allApps[55],
+        ]);
     }, []);
 
     useEffect(() => {
@@ -92,17 +103,18 @@ function useInstalledApps() {
     }, [queryApps]);
 
     const apps = useMemo<AppOrSomething[]>(() => {
-        return appDetails.map(a => ({
+        return appDetails.map((a) => ({
             name: a.label,
             packageId: a.packageName,
             iconUrl: a.icon,
+            accent: a.accentColor ?? "#000000",
         }));
     }, [appDetails]);
 
-    return apps;
+    return { apps };
 }
 
-const windowDimensions = Dimensions.get('window');
+const windowDimensions = Dimensions.get("window");
 
 export default function App() {
     const [shouldShowPie, setShouldShowPie] = useState(false);
@@ -110,15 +122,15 @@ export default function App() {
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
     const [hoveredApp, setHoveredApp] = useState<string | null>(null);
 
-    const apps = useInstalledApps();
+    const { apps } = useInstalledApps();
 
     const appPositions = useMemo(
-        () => calculateAppPositions(apps, center),
-        [apps, center],
+        () => (center ? calculateAppPositions(center, apps) : []),
+        [apps, center]
     );
 
     const onAppSelect = useCallback((app: AppOrSomething) => {
-        console.log(app, 'app');
+        console.log(app, "app");
         RNLauncherKitHelper.launchApplication(app.packageId);
     }, []);
 
@@ -146,7 +158,7 @@ export default function App() {
             setHoveredApp(null);
             setCenter(newCenter);
         },
-        [],
+        []
     );
 
     const onPanEnd = useCallback(() => {
@@ -156,6 +168,7 @@ export default function App() {
                 onAppSelect(selectedApp);
             }
         }
+
         setShouldShowPie(false);
         setCenter(undefined);
         setFinalTouch(undefined);
@@ -166,15 +179,24 @@ export default function App() {
         (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
             if (event.nativeEvent.state === State.BEGAN) {
                 onPanStart(event);
-            } else if (event.nativeEvent.state === State.END) {
+            } else if (
+                event.nativeEvent.state === State.END ||
+                event.nativeEvent.state === State.FAILED
+            ) {
                 onPanEnd();
             }
         },
-        [onPanEnd, onPanStart],
+        [onPanEnd, onPanStart]
     );
 
+    useEffect(() => {
+        if (shouldShowPie) {
+            Vibration.vibrate(10);
+        }
+    }, [shouldShowPie]);
+
     const onGestureEvent = useCallback(
-        (event: any) => {
+        (event: GestureEvent<PanGestureHandlerEventPayload>) => {
             const touchPoint = {
                 x: event.nativeEvent.x - 10, // Apply offset
                 y: event.nativeEvent.y - 25,
@@ -185,7 +207,7 @@ export default function App() {
             if (closestApp && center) {
                 const distanceToCenter = Math.sqrt(
                     Math.pow(touchPoint.x - center.x, 2) +
-                        Math.pow(touchPoint.y - center.y, 2),
+                        Math.pow(touchPoint.y - center.y, 2)
                 );
 
                 const isInsidePie = distanceToCenter <= CIRCLE_RADIUS;
@@ -203,7 +225,7 @@ export default function App() {
                 setHoveredApp(null);
             }
         },
-        [center, appPositions, hoveredApp],
+        [center, appPositions, hoveredApp]
     );
 
     return (
@@ -211,22 +233,33 @@ export default function App() {
             <PanGestureHandler
                 onGestureEvent={onGestureEvent}
                 onHandlerStateChange={onHandlerStateChange}
-                onCancelled={a => console.log(a, 'a')}>
+                onCancelled={(a) => console.log(a, "a")}
+            >
                 <View style={styles.fullScreen}>
                     <Text>Touch and hold anywhere.</Text>
                     {shouldShowPie &&
                         center &&
                         appPositions.map((item, index) => (
-                            <Image
-                                src={item.iconUrl}
-                                key={index}
+                            <View
                                 style={[
                                     styles.icon,
-                                    {left: item.left, top: item.top},
-                                    hoveredApp === item.name &&
-                                        styles.hoveredIcon,
+                                    { left: item.left, top: item.top },
+                                    hoveredApp === item.name && {
+                                        backgroundColor: item.accent,
+                                    },
                                 ]}
-                            />
+                                key={"pie-" + item.packageId}
+                            >
+                                <Image
+                                    style={{
+                                        width: "75%",
+                                        height: "75%",
+                                        margin: "auto",
+                                    }}
+                                    src={item.iconUrl}
+                                    key={index}
+                                />
+                            </View>
                         ))}
                 </View>
             </PanGestureHandler>
@@ -240,18 +273,18 @@ const styles = StyleSheet.create({
     },
     fullScreen: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+        justifyContent: "center",
+        alignItems: "center",
     },
     icon: {
-        position: 'absolute',
+        position: "absolute",
         // backgroundColor: 'lightblue',
-        // borderRadius: '100%',
-        width: 64,
-        height: 64,
-        transform: [{translateX: '-50%'}, {translateY: '-50%'}],
+        borderRadius: "100%",
+        width: 88,
+        height: 88,
+        transform: [{ translateX: "-50%" }, { translateY: "-50%" }],
     },
     hoveredIcon: {
-        backgroundColor: 'dodgerblue', // Change color when hovered
+        backgroundColor: "dodgerblue", // Change color when hovered
     },
 });
