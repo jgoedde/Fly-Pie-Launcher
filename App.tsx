@@ -1,5 +1,5 @@
 import React, {useCallback, useMemo, useState} from 'react';
-import {StyleSheet, Text, Vibration, View} from 'react-native';
+import {Dimensions, StyleSheet, Text, Vibration, View} from 'react-native';
 import {
     GestureHandlerRootView,
     PanGestureHandler,
@@ -7,7 +7,9 @@ import {
 } from 'react-native-gesture-handler';
 
 type Point = {x: number; y: number};
+
 type AppOrSomething = {name: string; packageId: string};
+
 type AppWithDistance = AppOrSomething & {
     left: number;
     top: number;
@@ -36,6 +38,7 @@ const calculateAppPositions: (
     if (!center) {
         return [];
     }
+
     return apps.map((app, i) => {
         const angle = (i / apps.length) * (2 * Math.PI);
         return {
@@ -69,6 +72,8 @@ const findClosestApp: (
     return closestApp;
 };
 
+const windowDimensions = Dimensions.get('window');
+
 export default function App() {
     const [shouldShowPie, setShouldShowPie] = useState(false);
     const [center, setCenter] = useState<Point | undefined>();
@@ -80,9 +85,27 @@ export default function App() {
     const onHandlerStateChange = useCallback(
         (event: any) => {
             if (event.nativeEvent.state === State.BEGAN) {
+                let newCenter = {
+                    x: event.nativeEvent.x,
+                    y: event.nativeEvent.y,
+                };
+
+                // Ensure the pie stays within screen bounds
+                if (newCenter.x + CIRCLE_RADIUS > windowDimensions.width) {
+                    newCenter.x = windowDimensions.width - CIRCLE_RADIUS;
+                } else if (newCenter.x - CIRCLE_RADIUS < 0) {
+                    newCenter.x = CIRCLE_RADIUS;
+                }
+
+                if (newCenter.y + CIRCLE_RADIUS > windowDimensions.height) {
+                    newCenter.y = windowDimensions.height - CIRCLE_RADIUS;
+                } else if (newCenter.y - CIRCLE_RADIUS < 0) {
+                    newCenter.y = CIRCLE_RADIUS;
+                }
+
                 setShouldShowPie(true);
                 setHoveredApp(null);
-                setCenter({x: event.nativeEvent.x, y: event.nativeEvent.y});
+                setCenter(newCenter);
             } else if (event.nativeEvent.state === State.END) {
                 if (center && finalTouch) {
                     const selectedApp = findClosestApp(
