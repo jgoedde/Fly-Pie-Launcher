@@ -152,6 +152,13 @@ export default function App() {
 
     const onPanStart = useCallback(
         (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
+            if (
+                event.nativeEvent.y <= 100 ||
+                event.nativeEvent.y >= Dimensions.get('screen').height - 100
+            ) {
+                return;
+            }
+
             let newCenter = getSafePosition({
                 x: event.nativeEvent.x,
                 y: event.nativeEvent.y,
