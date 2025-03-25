@@ -5,25 +5,23 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import {
-    Dimensions,
-    Image,
-    StyleSheet,
-    Text,
-    Vibration,
-    View,
-} from 'react-native';
+import { Image, StyleSheet, Text, Vibration, View } from 'react-native';
 import {
     GestureEvent,
     GestureHandlerRootView,
     PanGestureHandler,
     State,
 } from 'react-native-gesture-handler';
-import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
-import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
+import { RNLauncherKitHelper } from 'react-native-launcher-kit';
 import { HandlerStateChangeEvent } from 'react-native-gesture-handler/lib/typescript/handlers/gestureHandlerCommon';
 import type { PanGestureHandlerEventPayload } from 'react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload';
 import Icon from '@react-native-vector-icons/fontawesome6';
+import { useInstalledApps } from './use-installed-apps.ts';
+import {
+    calculateItemPositions,
+    findClosestItem,
+    getSafePosition,
+} from './pieUtils.ts';
 
 type Point = { x: number; y: number };
 
@@ -45,125 +43,73 @@ type PieItemWithDistance = PieItem & {
     distance: number;
 };
 
-const CIRCLE_RADIUS = 120; // Distance from center
-const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
+export const CIRCLE_RADIUS = 120; // Distance from center
+export const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 
-/** Calculates positions for the items around the center */
-function calculateItemPositions<T>(
-    center: Point,
-    items: T[],
-): (T & { left: number; top: number })[] {
-    return items.map((item, i) => {
-        const angle = (i / items.length) * (2 * Math.PI) - Math.PI / 2; // Start from top (12 o'clock)
+type LayerMap = Array<Layer>;
 
-        return {
-            ...item,
-            left: Math.round(center.x + CIRCLE_RADIUS * Math.cos(angle)),
-            top: Math.round(center.y + CIRCLE_RADIUS * Math.sin(angle)),
-        };
-    });
-}
-
-/** Finds the closest app based on the touch position */
-function findClosestItem<T extends { top: number; left: number }>(
-    touchPoint: Point,
-    items: T[],
-): (T & { distance: number }) | null {
-    let closestItem: (T & { distance: number }) | null = null;
-    let minDistance = Infinity;
-
-    items.forEach(app => {
-        const distance = Math.sqrt(
-            Math.pow(touchPoint.x - app.left, 2) +
-                Math.pow(touchPoint.y - app.top, 2),
-        );
-        if (distance < minDistance) {
-            minDistance = distance;
-            closestItem = { ...app, distance };
-        }
-    });
-
-    return closestItem;
-}
-
-function useInstalledApps() {
-    const [appDetails, setAppDetails] = useState<AppDetail[]>([]);
-
-    const queryApps = useCallback(async () => {
-        const allApps = await InstalledApps.getApps({
-            includeVersion: false,
-            includeAccentColor: true,
-        });
-
-        setAppDetails(allApps);
-    }, []);
-
-    useEffect(() => {
-        void queryApps();
-    }, [queryApps]);
-
-    return { apps: appDetails };
-}
-
-const windowDimensions = Dimensions.get('window');
-
-const layers: Record<number, Array<string | number>> = {
-    0: [
-        'com.whatsapp',
-        'app.grapheneos.camera',
-        'org.mozilla.firefox',
-        'com.google.android.apps.maps',
-        1,
-    ],
-    1: ['app.revanced.android.youtube', 'me.zhanghai.android.files'],
+type Layer = {
+    id: number;
+    name: string;
+    items: Array<
+        string | { linkId: number; faIconCode: string; accentColor: string }
+    >;
 };
 
-/**
- * Receives a point on the screen that may potentially be close to the borders
- * and outputs a new point with safe padding to the screen's edges.
- */
-const getSafePosition = (point: Point) => {
-    let newPoint = {
-        x: point.x,
-        y: point.y,
-    };
-
-    // Ensure the pie stays within screen bounds
-    if (newPoint.x + CIRCLE_RADIUS > windowDimensions.width) {
-        newPoint.x = windowDimensions.width - (CIRCLE_RADIUS + 30);
-    } else if (newPoint.x - CIRCLE_RADIUS < 0) {
-        newPoint.x = CIRCLE_RADIUS + 30;
-    }
-
-    if (newPoint.y + CIRCLE_RADIUS > windowDimensions.height) {
-        newPoint.y = windowDimensions.height - CIRCLE_RADIUS - 30;
-    } else if (newPoint.y - CIRCLE_RADIUS < 0) {
-        newPoint.y = CIRCLE_RADIUS + 30;
-    }
-    return newPoint;
-};
+const layers: LayerMap = [
+    {
+        id: 1,
+        name: 'Home',
+        items: [
+            'com.whatsapp',
+            'app.grapheneos.camera',
+            'org.mozilla.firefox',
+            'com.google.android.apps.maps',
+            { linkId: 2, faIconCode: 'arrow-up', accentColor: '#800080' },
+        ],
+    },
+    {
+        id: 2,
+        name: 'Second level',
+        items: [
+            { linkId: 1, faIconCode: 'arrow-down', accentColor: '#ff0000' },
+            'app.revanced.android.youtube',
+            'me.zhanghai.android.files',
+        ],
+    },
+];
 
 export default function App() {
     const [shouldShowPie, setShouldShowPie] = useState(false);
     const [center, setCenter] = useState<Point | undefined>();
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
     const [hoveredItem, setHoveredItem] = useState<PieItemWithDistance>();
-    const [currentLayer, setCurrentLayer] = useState(0);
+    const [currentLayer, setCurrentLayer] = useState(1);
 
     const { apps } = useInstalledApps();
 
     const pieItems = useMemo<PieItem[]>(() => {
-        return layers[currentLayer]
-            .map(i => {
-                if (typeof i === 'number') {
+        return (
+            (layers.find(l => l.id === currentLayer)?.items ??
+                []) as Layer['items']
+        )
+            .map(item => {
+                if (typeof item === 'object') {
                     return {
-                        id: `pie-link-${i}`,
-                        link: i,
-                        accent: '#0f0f0f',
+                        id: `pie-link-${item.linkId}`,
+                        link: item.linkId,
+                        accent: item.accentColor,
+                        // @ts-expect-error -- something
+                        iconUrl: Icon.getImageSourceSync(
+                            'solid',
+                            item.faIconCode,
+                            42,
+                            '#fff',
+                        ).uri,
                     } as PieItem;
                 }
 
-                const appDetail = apps.find(a => a.packageName === i);
+                const appDetail = apps.find(a => a.packageName === item);
 
                 if (appDetail == null) {
                     return undefined;
@@ -222,7 +168,7 @@ export default function App() {
         setCenter(undefined);
         setFinalTouch(undefined);
         setHoveredItem(undefined);
-        setCurrentLayer(0);
+        setCurrentLayer(1);
     }, [itemPositions, center, finalTouch, hoveredItem, onAppSelect]);
 
     const onHandlerStateChange = useCallback(
@@ -316,7 +262,7 @@ export default function App() {
                         itemPositions.map(item => (
                             <View
                                 style={[
-                                    styles.icon,
+                                    styles.app,
                                     { left: item.left, top: item.top },
                                     hoveredItem?.id === item.id && {
                                         backgroundColor: item.accent,
@@ -324,28 +270,25 @@ export default function App() {
                                 ]}
                                 key={item.id}
                             >
-                                {item.link ? (
-                                    <Icon
-                                        iconStyle={'solid'}
-                                        name={'arrow-up'}
-                                        size={42}
-                                        color={'#fff'}
-                                        style={{
-                                            // width: '66%',
-                                            // height: '66%',
-                                            margin: 'auto',
-                                        }}
-                                    />
-                                ) : (
+                                <View
+                                    style={{
+                                        position: 'relative',
+                                        width: '100%',
+                                        height: '100%',
+                                    }}
+                                >
                                     <Image
-                                        style={{
-                                            width: '66%',
-                                            height: '66%',
-                                            margin: 'auto',
-                                        }}
+                                        style={[
+                                            styles.icon,
+                                            {
+                                                ...(item.link != null && {
+                                                    marginLeft: 7,
+                                                }),
+                                            },
+                                        ]}
                                         src={item.iconUrl}
                                     />
-                                )}
+                                </View>
                             </View>
                         ))}
                 </View>
@@ -362,13 +305,22 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        position: 'relative',
     },
-    icon: {
+    app: {
         position: 'absolute',
-        // backgroundColor: 'lightblue',
         borderRadius: '100%',
         width: 88,
         height: 88,
+        transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
+    },
+    icon: {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        margin: 'auto',
+        width: '65%',
+        height: '65%',
         transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
     },
 });
