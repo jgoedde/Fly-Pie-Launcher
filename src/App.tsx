@@ -29,9 +29,8 @@ import {
     findClosestItem,
     getSafePosition,
 } from './pieUtils.ts';
-import { useMMKVStorage } from 'react-native-mmkv-storage';
-import { storage } from './storage.ts';
 import PieCustomizer from './PieCustomizer.tsx';
+import { Layer, useLayers } from './use-layers.ts';
 
 type Point = { x: number; y: number };
 
@@ -56,54 +55,14 @@ type PieItemWithDistance = PieItem & {
 export const CIRCLE_RADIUS = 120; // Distance from center
 export const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 
-type LayerMap = Array<Layer>;
-
-type Layer = {
-    id: number;
-    name: string;
-    isBaseLayer: boolean;
-    items: Array<
-        string | { linkId: number; faIconCode: string; accentColor: string }
-    >;
-};
-
 export default function App() {
-    const [layers, setLayers] = useMMKVStorage<LayerMap>('layers', storage, [
-        {
-            id: 1,
-            name: 'Home',
-            isBaseLayer: true,
-            items: [
-                'me.zhanghai.android.files',
-                'com.android.phone',
-                'md.obsidian',
-                'com.whatsapp',
-                'app.grapheneos.camera',
-                'org.mozilla.firefox',
-                'app.alextran.immich',
-                'com.google.android.apps.maps',
-                'app.revanced.android.apps.youtube.music',
-                'com.google.android.deskclock',
-                // { linkId: 2, faIconCode: 'arrow-up', accentColor: '#800080' },
-            ],
-        },
-        {
-            id: 2,
-            name: 'Second level',
-            isBaseLayer: false,
-            items: [
-                { linkId: 1, faIconCode: 'arrow-down', accentColor: '#ff0000' },
-                'app.revanced.android.youtube',
-                'me.zhanghai.android.files',
-            ],
-        },
-    ]);
     const [shouldShowPie, setShouldShowPie] = useState(false);
     const [center, setCenter] = useState<Point | undefined>();
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
     const [hoveredItem, setHoveredItem] = useState<PieItemWithDistance>();
     const [currentLayerId, setCurrentLayerId] = useState(1);
     const [isCustomizing, setIsCustomizing] = useState(false);
+    const { layers } = useLayers();
 
     useEffect(() => {
         console.log(isCustomizing, 'isCustomizing');
