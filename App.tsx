@@ -254,67 +254,70 @@ export default function App() {
     }, [hoveredItem]);
 
     return (
-        <GestureHandlerRootView style={styles.container}>
-            <PanGestureHandler
-                onGestureEvent={onGestureEvent}
-                onHandlerStateChange={onHandlerStateChange}
-            >
-                <View style={styles.fullScreen}>
-                    {shouldShowPie &&
-                        center != null &&
-                        !currentLayer.isBaseLayer && (
-                            <Text
-                                style={{
-                                    position: 'absolute',
-                                    left: center.x,
-                                    top: center.y - 60,
-                                    fontSize: 32,
-                                    transform: [
-                                        { translateX: '-50%' },
-                                        { translateY: '-50%' },
-                                    ],
-                                }}
-                            >
-                                {currentLayer.name}
-                            </Text>
-                        )}
-                    {shouldShowPie &&
-                        center != null &&
-                        itemPositions.map(item => (
-                            <View
-                                style={[
-                                    styles.app,
-                                    { left: item.left, top: item.top },
-                                    hoveredItem?.id === item.id && {
-                                        backgroundColor: item.accent,
-                                    },
-                                ]}
-                                key={item.id}
-                            >
-                                <View
+        <View style={styles.container}>
+            <GestureHandlerRootView>
+                <PanGestureHandler
+                    onGestureEvent={onGestureEvent}
+                    onHandlerStateChange={onHandlerStateChange}
+                >
+                    <View style={styles.fullScreen}>
+                        {shouldShowPie &&
+                            center != null &&
+                            !currentLayer.isBaseLayer && (
+                                <Text
                                     style={{
-                                        position: 'relative',
-                                        width: '100%',
-                                        height: '100%',
+                                        position: 'absolute',
+                                        left: center.x,
+                                        top: center.y - 60,
+                                        fontSize: 32,
+                                        transform: [
+                                            { translateX: '-50%' },
+                                            { translateY: '-50%' },
+                                        ],
                                     }}
                                 >
-                                    <Image
-                                        style={[
-                                            styles.icon,
-                                            {
-                                                ...(item.toLayerId != null && {
-                                                    marginLeft: 7,
-                                                }),
-                                            },
-                                        ]}
-                                        src={item.iconUrl}
-                                    />
+                                    {currentLayer.name}
+                                </Text>
+                            )}
+                        {shouldShowPie &&
+                            center != null &&
+                            itemPositions.map(item => (
+                                <View
+                                    style={[
+                                        styles.app,
+                                        { left: item.left, top: item.top },
+                                        hoveredItem?.id === item.id && {
+                                            backgroundColor: item.accent,
+                                        },
+                                    ]}
+                                    key={item.id}
+                                >
+                                    <View
+                                        style={{
+                                            position: 'relative',
+                                            width: '100%',
+                                            height: '100%',
+                                        }}
+                                    >
+                                        <Image
+                                            style={[
+                                                styles.icon,
+                                                {
+                                                    ...(item.toLayerId !=
+                                                        null && {
+                                                        marginLeft: 7,
+                                                    }),
+                                                },
+                                            ]}
+                                            src={item.iconUrl}
+                                        />
+                                    </View>
                                 </View>
-                            </View>
-                        ))}
-                </View>
-            </PanGestureHandler>
-        </GestureHandlerRootView>
+                            ))}
+                    </View>
+                </PanGestureHandler>
+            </GestureHandlerRootView>
+        </View>
     );
 }
 
