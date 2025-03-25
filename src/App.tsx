@@ -73,11 +73,17 @@ export default function App() {
             name: 'Home',
             isBaseLayer: true,
             items: [
+                'me.zhanghai.android.files',
+                'com.android.phone',
+                'md.obsidian',
                 'com.whatsapp',
                 'app.grapheneos.camera',
                 'org.mozilla.firefox',
+                'app.alextran.immich',
                 'com.google.android.apps.maps',
-                { linkId: 2, faIconCode: 'arrow-up', accentColor: '#800080' },
+                'app.revanced.android.apps.youtube.music',
+                'com.google.android.deskclock',
+                // { linkId: 2, faIconCode: 'arrow-up', accentColor: '#800080' },
             ],
         },
         {
