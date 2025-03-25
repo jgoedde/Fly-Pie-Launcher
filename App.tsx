@@ -147,7 +147,7 @@ export default function App() {
     const [shouldShowPie, setShouldShowPie] = useState(false);
     const [center, setCenter] = useState<Point | undefined>();
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
-    const [hoveredApp, setHoveredApp] = useState<PieItemWithDistance>();
+    const [hoveredItem, setHoveredItem] = useState<PieItemWithDistance>();
     const [currentLayer, setCurrentLayer] = useState(0);
 
     const { apps } = useInstalledApps();
@@ -200,7 +200,7 @@ export default function App() {
             });
 
             setShouldShowPie(true);
-            setHoveredApp(undefined);
+            setHoveredItem(undefined);
             setCenter(newCenter);
         },
         [],
@@ -208,22 +208,22 @@ export default function App() {
 
     const onPanEnd = useCallback(() => {
         if (center && finalTouch) {
-            const selectedApp = findClosestItem(finalTouch, itemPositions);
+            const closestItem = findClosestItem(finalTouch, itemPositions);
             if (
-                selectedApp &&
-                !selectedApp.link &&
-                hoveredApp?.id === selectedApp.id
+                closestItem != null &&
+                !closestItem.link &&
+                hoveredItem?.id === closestItem.id
             ) {
-                onAppSelect(selectedApp);
+                onAppSelect(closestItem);
             }
         }
 
         setShouldShowPie(false);
         setCenter(undefined);
         setFinalTouch(undefined);
-        setHoveredApp(undefined);
+        setHoveredItem(undefined);
         setCurrentLayer(0);
-    }, [itemPositions, center, finalTouch, hoveredApp, onAppSelect]);
+    }, [itemPositions, center, finalTouch, hoveredItem, onAppSelect]);
 
     const onHandlerStateChange = useCallback(
         (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
@@ -231,7 +231,7 @@ export default function App() {
                 onPanStart(event);
             } else if (
                 event.nativeEvent.state === State.END ||
-                event.nativeEvent.state === State.FAILED
+                event.nativeEvent.state === State.FAILED // Idea: on failed, open the launcher's settings
             ) {
                 onPanEnd();
             }
@@ -253,8 +253,8 @@ export default function App() {
             };
             setFinalTouch(touchPoint);
 
-            const closestApp = findClosestItem(touchPoint, itemPositions);
-            if (closestApp && center) {
+            const closestItem = findClosestItem(touchPoint, itemPositions);
+            if (closestItem != null && center != null) {
                 const distanceToCenter = Math.sqrt(
                     Math.pow(touchPoint.x - center.x, 2) +
                         Math.pow(touchPoint.y - center.y, 2),
@@ -262,36 +262,36 @@ export default function App() {
 
                 const isInsidePie = distanceToCenter <= CIRCLE_RADIUS;
                 const shouldHover = isInsidePie
-                    ? closestApp.distance <= HOVER_THRESHOLD
+                    ? closestItem.distance <= HOVER_THRESHOLD
                     : true;
 
-                if (shouldHover && closestApp.id !== hoveredApp?.id) {
-                    setHoveredApp(closestApp);
+                if (shouldHover && closestItem.id !== hoveredItem?.id) {
+                    setHoveredItem(closestItem);
                     Vibration.vibrate(10);
                 } else if (!shouldHover) {
-                    setHoveredApp(undefined);
+                    setHoveredItem(undefined);
                 }
             } else {
-                setHoveredApp(undefined);
+                setHoveredItem(undefined);
             }
         },
-        [center, itemPositions, hoveredApp],
+        [center, itemPositions, hoveredItem],
     );
 
     const timeout = useRef<NodeJS.Timeout>(null);
 
     useEffect(() => {
-        if (hoveredApp?.link != null) {
+        if (hoveredItem?.link != null) {
             timeout.current = setTimeout(() => {
-                if (hoveredApp?.link != null) {
-                    setCurrentLayer(hoveredApp.link);
+                if (hoveredItem?.link != null) {
+                    setCurrentLayer(hoveredItem.link);
                     setCenter(
                         getSafePosition({
-                            x: hoveredApp.left,
-                            y: hoveredApp.top,
+                            x: hoveredItem.left,
+                            y: hoveredItem.top,
                         }),
                     );
-                    setHoveredApp(undefined);
+                    setHoveredItem(undefined);
                 }
             }, 300);
 
@@ -301,7 +301,7 @@ export default function App() {
                 }
             };
         }
-    }, [hoveredApp]);
+    }, [hoveredItem]);
 
     return (
         <GestureHandlerRootView style={styles.container}>
@@ -318,7 +318,7 @@ export default function App() {
                                 style={[
                                     styles.icon,
                                     { left: item.left, top: item.top },
-                                    hoveredApp?.id === item.id && {
+                                    hoveredItem?.id === item.id && {
                                         backgroundColor: item.accent,
                                     },
                                 ]}
