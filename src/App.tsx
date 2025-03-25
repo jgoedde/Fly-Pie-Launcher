@@ -29,6 +29,8 @@ import {
     findClosestItem,
     getSafePosition,
 } from './pieUtils.ts';
+import { useMMKVStorage } from 'react-native-mmkv-storage';
+import { storage } from './storage.ts';
 
 type Point = { x: number; y: number };
 
@@ -64,32 +66,31 @@ type Layer = {
     >;
 };
 
-const layers: LayerMap = [
-    {
-        id: 1,
-        name: 'Home',
-        isBaseLayer: true,
-        items: [
-            'com.whatsapp',
-            'app.grapheneos.camera',
-            'org.mozilla.firefox',
-            'com.google.android.apps.maps',
-            { linkId: 2, faIconCode: 'arrow-up', accentColor: '#800080' },
-        ],
-    },
-    {
-        id: 2,
-        name: 'Second level',
-        isBaseLayer: false,
-        items: [
-            { linkId: 1, faIconCode: 'arrow-down', accentColor: '#ff0000' },
-            'app.revanced.android.youtube',
-            'me.zhanghai.android.files',
-        ],
-    },
-];
-
 export default function App() {
+    const [layers, setLayers] = useMMKVStorage<LayerMap>('layers', storage, [
+        {
+            id: 1,
+            name: 'Home',
+            isBaseLayer: true,
+            items: [
+                'com.whatsapp',
+                'app.grapheneos.camera',
+                'org.mozilla.firefox',
+                'com.google.android.apps.maps',
+                { linkId: 2, faIconCode: 'arrow-up', accentColor: '#800080' },
+            ],
+        },
+        {
+            id: 2,
+            name: 'Second level',
+            isBaseLayer: false,
+            items: [
+                { linkId: 1, faIconCode: 'arrow-down', accentColor: '#ff0000' },
+                'app.revanced.android.youtube',
+                'me.zhanghai.android.files',
+            ],
+        },
+    ]);
     const [shouldShowPie, setShouldShowPie] = useState(false);
     const [center, setCenter] = useState<Point | undefined>();
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
@@ -98,7 +99,7 @@ export default function App() {
 
     const currentLayer = useMemo<Layer>(() => {
         return layers.find(layer => layer.id === currentLayerId)!;
-    }, [currentLayerId]);
+    }, [currentLayerId, layers]);
 
     const { apps } = useInstalledApps();
 
