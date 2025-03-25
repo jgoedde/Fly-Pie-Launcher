@@ -5,7 +5,14 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import { Image, StyleSheet, Text, Vibration, View } from 'react-native';
+import {
+    Dimensions,
+    Image,
+    StyleSheet,
+    Text,
+    Vibration,
+    View,
+} from 'react-native';
 import {
     GestureEvent,
     GestureHandlerRootView,
