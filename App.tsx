@@ -32,7 +32,7 @@ type PieItem = {
     /**
      * An optional link to another pie layer.
      */
-    link?: number;
+    toLayerId?: number;
     iconUrl?: string;
     packageId?: string;
 };
@@ -51,6 +51,7 @@ type LayerMap = Array<Layer>;
 type Layer = {
     id: number;
     name: string;
+    isBaseLayer: boolean;
     items: Array<
         string | { linkId: number; faIconCode: string; accentColor: string }
     >;
@@ -60,6 +61,7 @@ const layers: LayerMap = [
     {
         id: 1,
         name: 'Home',
+        isBaseLayer: true,
         items: [
             'com.whatsapp',
             'app.grapheneos.camera',
@@ -71,6 +73,7 @@ const layers: LayerMap = [
     {
         id: 2,
         name: 'Second level',
+        isBaseLayer: false,
         items: [
             { linkId: 1, faIconCode: 'arrow-down', accentColor: '#ff0000' },
             'app.revanced.android.youtube',
@@ -84,20 +87,26 @@ export default function App() {
     const [center, setCenter] = useState<Point | undefined>();
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
     const [hoveredItem, setHoveredItem] = useState<PieItemWithDistance>();
-    const [currentLayer, setCurrentLayer] = useState(1);
+    const [currentLayerId, setCurrentLayerId] = useState(1);
+
+    const currentLayer = useMemo<Layer>(() => {
+        return layers.find(layer => layer.id === currentLayerId)!;
+    }, [currentLayerId]);
+
+    useEffect(() => {
+        console.log(currentLayer, 'currentLayer');
+        console.log(currentLayerId, 'currentLayerId');
+    }, [currentLayer, currentLayerId]);
 
     const { apps } = useInstalledApps();
 
     const pieItems = useMemo<PieItem[]>(() => {
-        return (
-            (layers.find(l => l.id === currentLayer)?.items ??
-                []) as Layer['items']
-        )
+        return currentLayer.items
             .map(item => {
                 if (typeof item === 'object') {
                     return {
                         id: `pie-link-${item.linkId}`,
-                        link: item.linkId,
+                        toLayerId: item.linkId,
                         accent: item.accentColor,
                         // @ts-expect-error -- something
                         iconUrl: Icon.getImageSourceSync(
@@ -123,7 +132,7 @@ export default function App() {
                 } as PieItem;
             })
             .filter((i: PieItem | undefined): i is PieItem => !!i);
-    }, [apps, currentLayer]);
+    }, [apps, currentLayerId]);
 
     const itemPositions = useMemo(
         () => (center ? calculateItemPositions(center, pieItems) : []),
@@ -157,7 +166,7 @@ export default function App() {
             const closestItem = findClosestItem(finalTouch, itemPositions);
             if (
                 closestItem != null &&
-                !closestItem.link &&
+                !closestItem.toLayerId &&
                 hoveredItem?.id === closestItem.id
             ) {
                 onAppSelect(closestItem);
@@ -168,7 +177,7 @@ export default function App() {
         setCenter(undefined);
         setFinalTouch(undefined);
         setHoveredItem(undefined);
-        setCurrentLayer(1);
+        setCurrentLayerId(1);
     }, [itemPositions, center, finalTouch, hoveredItem, onAppSelect]);
 
     const onHandlerStateChange = useCallback(
@@ -227,10 +236,10 @@ export default function App() {
     const timeout = useRef<NodeJS.Timeout>(null);
 
     useEffect(() => {
-        if (hoveredItem?.link != null) {
+        if (hoveredItem?.toLayerId != null) {
             timeout.current = setTimeout(() => {
-                if (hoveredItem?.link != null) {
-                    setCurrentLayer(hoveredItem.link);
+                if (hoveredItem?.toLayerId != null) {
+                    setCurrentLayerId(hoveredItem.toLayerId);
                     setCenter(
                         getSafePosition({
                             x: hoveredItem.left,
@@ -258,7 +267,25 @@ export default function App() {
                 <View style={styles.fullScreen}>
                     <Text>Touch and hold anywhere.</Text>
                     {shouldShowPie &&
-                        center &&
+                        center != null &&
+                        !currentLayer.isBaseLayer && (
+                            <Text
+                                style={{
+                                    position: 'absolute',
+                                    left: center.x,
+                                    top: center.y - 60,
+                                    fontSize: 32,
+                                    transform: [
+                                        { translateX: '-50%' },
+                                        { translateY: '-50%' },
+                                    ],
+                                }}
+                            >
+                                {currentLayer.name}
+                            </Text>
+                        )}
+                    {shouldShowPie &&
+                        center != null &&
                         itemPositions.map(item => (
                             <View
                                 style={[
@@ -281,7 +308,7 @@ export default function App() {
                                         style={[
                                             styles.icon,
                                             {
-                                                ...(item.link != null && {
+                                                ...(item.toLayerId != null && {
                                                     marginLeft: 7,
                                                 }),
                                             },
