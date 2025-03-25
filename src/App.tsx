@@ -323,20 +323,37 @@ export default function App() {
                                             position: 'relative',
                                             width: '100%',
                                             height: '100%',
+                                            justifyContent: 'center',
                                         }}
                                     >
-                                        <Image
-                                            style={[
-                                                styles.icon,
-                                                {
-                                                    ...(item.toLayerId !=
-                                                        null && {
-                                                        marginLeft: 7,
-                                                    }),
-                                                },
-                                            ]}
-                                            src={item.iconUrl}
-                                        />
+                                        {item.toLayerId == null ? (
+                                            <Image
+                                                style={[
+                                                    styles.icon,
+                                                    {
+                                                        ...(item.toLayerId !=
+                                                            null && {
+                                                            marginLeft: 7,
+                                                        }),
+                                                    },
+                                                ]}
+                                                src={item.iconUrl}
+                                            />
+                                        ) : (
+                                            <Text
+                                                style={[
+                                                    {
+                                                        fontSize: 32,
+                                                        fontWeight: 700,
+                                                        marginLeft: 'auto',
+                                                        marginRight: 'auto',
+                                                        color: 'white',
+                                                    },
+                                                ]}
+                                            >
+                                                {item.toLayerId}
+                                            </Text>
+                                        )}
                                     </View>
                                 </View>
                             ))}
@@ -363,6 +380,8 @@ const styles = StyleSheet.create({
         width: 88,
         height: 88,
         transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     icon: {
         position: 'absolute',
