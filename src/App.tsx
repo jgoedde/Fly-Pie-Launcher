@@ -31,6 +31,7 @@ import {
 } from './pieUtils.ts';
 import { useMMKVStorage } from 'react-native-mmkv-storage';
 import { storage } from './storage.ts';
+import PieCustomizer from './PieCustomizer.tsx';
 
 type Point = { x: number; y: number };
 
@@ -102,6 +103,11 @@ export default function App() {
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
     const [hoveredItem, setHoveredItem] = useState<PieItemWithDistance>();
     const [currentLayerId, setCurrentLayerId] = useState(1);
+    const [isCustomizing, setIsCustomizing] = useState(false);
+
+    useEffect(() => {
+        console.log(isCustomizing, 'isCustomizing');
+    }, [isCustomizing]);
 
     const currentLayer = useMemo<Layer>(() => {
         return layers.find(layer => layer.id === currentLayerId)!;
@@ -142,6 +148,14 @@ export default function App() {
             })
             .filter((i: PieItem | undefined): i is PieItem => !!i);
     }, [apps, currentLayer.items]);
+
+    const reset = useCallback(() => {
+        setShouldShowPie(false);
+        setHoveredItem(undefined);
+        setCurrentLayerId(1);
+        setFinalTouch(undefined);
+        setCenter(undefined);
+    }, []);
 
     const itemPositions = useMemo(
         () => (center ? calculateItemPositions(center, pieItems) : []),
@@ -189,22 +203,24 @@ export default function App() {
             }
         }
 
-        setShouldShowPie(false);
-        setCenter(undefined);
-        setFinalTouch(undefined);
-        setHoveredItem(undefined);
-        setCurrentLayerId(1);
-    }, [itemPositions, center, finalTouch, hoveredItem, onAppSelect]);
+        reset();
+    }, [
+        center,
+        finalTouch,
+        reset,
+        itemPositions,
+        hoveredItem?.id,
+        onAppSelect,
+    ]);
 
     const onHandlerStateChange = useCallback(
         (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
             if (event.nativeEvent.state === State.BEGAN) {
                 onPanStart(event);
-            } else if (
-                event.nativeEvent.state === State.END ||
-                event.nativeEvent.state === State.FAILED // Idea: on failed, open the launcher's settings
-            ) {
+            } else if (event.nativeEvent.state === State.END) {
                 onPanEnd();
+            } else if (event.nativeEvent.state === State.FAILED) {
+                setIsCustomizing(true);
             }
         },
         [onPanEnd, onPanStart],
@@ -273,6 +289,19 @@ export default function App() {
             };
         }
     }, [hoveredItem]);
+
+    if (isCustomizing) {
+        return (
+            <View style={styles.container}>
+                <PieCustomizer
+                    exit={() => {
+                        setIsCustomizing(false);
+                        reset();
+                    }}
+                />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
