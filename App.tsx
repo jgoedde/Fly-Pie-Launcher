@@ -93,11 +93,6 @@ export default function App() {
         return layers.find(layer => layer.id === currentLayerId)!;
     }, [currentLayerId]);
 
-    useEffect(() => {
-        console.log(currentLayer, 'currentLayer');
-        console.log(currentLayerId, 'currentLayerId');
-    }, [currentLayer, currentLayerId]);
-
     const { apps } = useInstalledApps();
 
     const pieItems = useMemo<PieItem[]>(() => {
@@ -132,7 +127,7 @@ export default function App() {
                 } as PieItem;
             })
             .filter((i: PieItem | undefined): i is PieItem => !!i);
-    }, [apps, currentLayerId]);
+    }, [apps, currentLayer.items]);
 
     const itemPositions = useMemo(
         () => (center ? calculateItemPositions(center, pieItems) : []),
@@ -265,7 +260,6 @@ export default function App() {
                 onHandlerStateChange={onHandlerStateChange}
             >
                 <View style={styles.fullScreen}>
-                    <Text>Touch and hold anywhere.</Text>
                     {shouldShowPie &&
                         center != null &&
                         !currentLayer.isBaseLayer && (
