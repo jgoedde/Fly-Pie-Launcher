@@ -129,11 +129,19 @@ export default function App() {
         RNLauncherKitHelper.launchApplication(app.packageId);
     }, []);
 
+    const isCloseToBorder = useCallback((point: Point) => {
+        return (
+            point.y <= 100 || point.y >= Dimensions.get('screen').height - 100
+        );
+    }, []);
+
     const onPanStart = useCallback(
         (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
             if (
-                event.nativeEvent.y <= 100 ||
-                event.nativeEvent.y >= Dimensions.get('screen').height - 100
+                isCloseToBorder({
+                    x: event.nativeEvent.x,
+                    y: event.nativeEvent.y,
+                })
             ) {
                 return;
             }
@@ -147,7 +155,7 @@ export default function App() {
             setHoveredItem(undefined);
             setCenter(newCenter);
         },
-        [],
+        [isCloseToBorder],
     );
 
     const onPanEnd = useCallback(() => {
@@ -179,7 +187,16 @@ export default function App() {
             } else if (event.nativeEvent.state === State.END) {
                 onPanEnd();
             } else if (event.nativeEvent.state === State.FAILED) {
-                setIsCustomizing(true);
+                if (
+                    isCloseToBorder({
+                        x: event.nativeEvent.x,
+                        y: event.nativeEvent.y,
+                    })
+                ) {
+                    setIsCustomizing(true);
+                } else {
+                    onPanEnd();
+                }
             }
         },
         [onPanEnd, onPanStart],
