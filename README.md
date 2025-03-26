@@ -30,6 +30,8 @@ An Android launcher that lets you navigate within a pie menu, allowing you to us
   - Maybe it's possible to get the app's shortcuts via Android ShortcutManager API
 - [ ] Make layers properly customizable via UI
 - [ ] Add sweet animations
+  - [x] Pie Fade In
+  - [ ] Layer switch
 - [ ] Build alpha release APK for public use -- **v0.1**
 - [ ] A one-tap gesture displays a grid of all your apps. The app below the location you tap will open.
 
