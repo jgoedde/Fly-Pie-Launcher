@@ -6,6 +6,7 @@ import React, {
     useState,
 } from 'react';
 import {
+    Animated,
     Dimensions,
     Image,
     StyleSheet,
@@ -34,7 +35,6 @@ import {
     Point,
     scaleItems,
 } from './pieUtils.ts';
-import PieCustomizer from './PieCustomizer.tsx';
 import {
     Layer,
     LayerItem,
@@ -43,6 +43,7 @@ import {
 } from './use-layer-config.ts';
 import { convertToRGBA } from './colorUtils.ts';
 import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
+import PieCustomizer from './PieCustomizer.tsx';
 
 export default function App() {
     const { layers } = useLayerConfig();
@@ -296,6 +297,24 @@ export default function App() {
         [hoveredItem?.id, scaledPieItems],
     );
 
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (shouldShowPie) {
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 188, // Fade-in duration
+                useNativeDriver: true,
+            }).start();
+        } else {
+            Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 188, // Fade-out duration
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [fadeAnim, shouldShowPie]);
+
     if (isCustomizing) {
         return (
             <View style={styles.container}>
@@ -309,19 +328,22 @@ export default function App() {
         );
     }
 
+    // noinspection XmlDeprecatedElement
     return (
-        <View style={styles.container}>
-            <GestureHandlerRootView>
-                <PanGestureHandler
-                    onGestureEvent={onGestureEvent}
-                    onHandlerStateChange={onHandlerStateChange}
-                >
-                    <View style={styles.fullScreen}>
-                        {shouldShowPie && pie}
-                    </View>
-                </PanGestureHandler>
-            </GestureHandlerRootView>
-        </View>
+        <GestureHandlerRootView>
+            <PanGestureHandler
+                onGestureEvent={onGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+            >
+                <View style={styles.fullScreen}>
+                    {shouldShowPie && (
+                        <Animated.View style={[{ opacity: fadeAnim }]}>
+                            {pie}
+                        </Animated.View>
+                    )}
+                </View>
+            </PanGestureHandler>
+        </GestureHandlerRootView>
     );
 }
 
@@ -368,9 +390,9 @@ const styles = StyleSheet.create({
     },
     fullScreen: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        position: 'relative',
+        // justifyContent: 'center',
+        // alignItems: 'center',
+        // position: 'relative',
     },
     app: {
         position: 'absolute',
