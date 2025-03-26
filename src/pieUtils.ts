@@ -1,27 +1,45 @@
-import { Point } from 'react-native-gesture-handler/lib/typescript/web/interfaces';
 import { Dimensions } from 'react-native';
-import { CIRCLE_RADIUS } from './App.tsx';
 
 const windowDimensions = Dimensions.get('window');
+
+export type Point = { x: number; y: number };
+export type PieItem = {
+    accent: string;
+    id: string;
+
+    /**
+     * An optional link to another pie layer.
+     */
+    toLayerId?: number;
+    iconUrl?: string;
+    packageId?: string;
+};
+export type PieItemWithDistance = PieItem & {
+    x: number;
+    y: number;
+    distance: number;
+};
+export const CIRCLE_RADIUS = 120; // Distance from center
+export const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 
 /** Calculates positions for the items around the center */
 export function calculateItemPositions<T>(
     center: Point,
     items: T[],
-): (T & { left: number; top: number })[] {
+): (T & Point)[] {
     return items.map((item, i) => {
         const angle = (i / items.length) * (2 * Math.PI) - Math.PI / 2; // Start from top (12 o'clock)
 
         return {
             ...item,
-            left: Math.round(center.x + CIRCLE_RADIUS * Math.cos(angle)),
-            top: Math.round(center.y + CIRCLE_RADIUS * Math.sin(angle)),
+            x: Math.round(center.x + CIRCLE_RADIUS * Math.cos(angle)),
+            y: Math.round(center.y + CIRCLE_RADIUS * Math.sin(angle)),
         };
     });
 }
 
 /** Finds the closest app based on the touch position */
-export function findClosestItem<T extends { top: number; left: number }>(
+export function findClosestItem<T extends Point>(
     touchPoint: Point,
     items: T[],
 ): (T & { distance: number }) | null {
@@ -30,8 +48,8 @@ export function findClosestItem<T extends { top: number; left: number }>(
 
     items.forEach(app => {
         const distance = Math.sqrt(
-            Math.pow(touchPoint.x - app.left, 2) +
-                Math.pow(touchPoint.y - app.top, 2),
+            Math.pow(touchPoint.x - app.x, 2) +
+                Math.pow(touchPoint.y - app.y, 2),
         );
         if (distance < minDistance) {
             minDistance = distance;
@@ -66,3 +84,57 @@ export const getSafePosition = (point: Point) => {
     }
     return newPoint;
 };
+
+/**
+ * Scales items based on their distance from a touch point, with a smooth effect.
+ * The closest item to the touch point is scaled the most, while farther items scale down.
+ * The scaling effect is reduced when the touch point is near the initial point.
+ *
+ * @param touchPoint - The current touch position.
+ * @param initialPoint - The initial reference point for scaling adjustment.
+ * @param items - An array of items with x, y coordinates.
+ * @returns The items with an additional `scale` property.
+ */
+export function scaleItems<T extends Point>(
+    touchPoint: Point,
+    initialPoint: Point,
+    items: T[],
+): (T & { scale: number })[] {
+    if (items.length === 0) {
+        return [];
+    }
+
+    const initialDistance = Math.hypot(
+        initialPoint.x - touchPoint.x,
+        initialPoint.y - touchPoint.y,
+    );
+    const scaleFactor = Math.min(
+        1,
+        Math.max(
+            0,
+            (initialDistance - CIRCLE_RADIUS / 4) /
+                (CIRCLE_RADIUS - CIRCLE_RADIUS / 4),
+        ),
+    );
+
+    const distances = items.map(item => ({
+        item,
+        distance: Math.hypot(item.x - touchPoint.x, item.y - touchPoint.y),
+    }));
+
+    const minDistance = Math.min(...distances.map(d => d.distance));
+    const maxDistance = Math.max(...distances.map(d => d.distance));
+
+    const minScale = 0.88;
+    const maxScale = 1.33;
+
+    return distances.map(({ item, distance }) => {
+        const normalizedDistance =
+            maxDistance === minDistance
+                ? 1
+                : (maxDistance - distance) / (maxDistance - minDistance);
+        const scale =
+            minScale + (maxScale - minScale) * normalizedDistance * scaleFactor;
+        return { ...item, scale };
+    });
+}

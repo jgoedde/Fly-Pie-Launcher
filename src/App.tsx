@@ -22,57 +22,35 @@ import {
 import { RNLauncherKitHelper } from 'react-native-launcher-kit';
 import { HandlerStateChangeEvent } from 'react-native-gesture-handler/lib/typescript/handlers/gestureHandlerCommon';
 import type { PanGestureHandlerEventPayload } from 'react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload';
-import Icon from '@react-native-vector-icons/fontawesome6';
 import { useInstalledApps } from './use-installed-apps.ts';
 import {
     calculateItemPositions,
+    CIRCLE_RADIUS,
     findClosestItem,
     getSafePosition,
+    HOVER_THRESHOLD,
+    PieItem,
+    PieItemWithDistance,
+    Point,
+    scaleItems,
 } from './pieUtils.ts';
 import PieCustomizer from './PieCustomizer.tsx';
 import { Layer, useLayers } from './use-layers.ts';
 
-type Point = { x: number; y: number };
-
-type PieItem = {
-    accent: string;
-    id: string;
-
-    /**
-     * An optional link to another pie layer.
-     */
-    toLayerId?: number;
-    iconUrl?: string;
-    packageId?: string;
-};
-
-type PieItemWithDistance = PieItem & {
-    left: number;
-    top: number;
-    distance: number;
-};
-
-export const CIRCLE_RADIUS = 120; // Distance from center
-export const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
-
 export default function App() {
+    const { layers } = useLayers();
+    const { apps } = useInstalledApps();
+
     const [shouldShowPie, setShouldShowPie] = useState(false);
     const [center, setCenter] = useState<Point | undefined>();
     const [finalTouch, setFinalTouch] = useState<Point | undefined>();
     const [hoveredItem, setHoveredItem] = useState<PieItemWithDistance>();
     const [currentLayerId, setCurrentLayerId] = useState(1);
     const [isCustomizing, setIsCustomizing] = useState(false);
-    const { layers } = useLayers();
-
-    useEffect(() => {
-        console.log(isCustomizing, 'isCustomizing');
-    }, [isCustomizing]);
 
     const currentLayer = useMemo<Layer>(() => {
         return layers.find(layer => layer.id === currentLayerId)!;
     }, [currentLayerId, layers]);
-
-    const { apps } = useInstalledApps();
 
     const pieItems = useMemo<PieItem[]>(() => {
         return currentLayer.items
@@ -82,13 +60,6 @@ export default function App() {
                         id: `pie-link-${item.linkId}`,
                         toLayerId: item.linkId,
                         accent: item.accentColor,
-                        // @ts-expect-error -- something
-                        iconUrl: Icon.getImageSourceSync(
-                            'solid',
-                            item.faIconCode,
-                            42,
-                            '#fff',
-                        ).uri,
                     } as PieItem;
                 }
 
@@ -121,6 +92,16 @@ export default function App() {
         [pieItems, center],
     );
 
+    const scaledPieItems = useMemo(() => {
+        const tp = finalTouch ?? center;
+
+        if (tp == null || center == null) {
+            return [];
+        }
+
+        return scaleItems(tp, center, itemPositions);
+    }, [center, finalTouch, itemPositions]);
+
     const onAppSelect = useCallback((app: PieItem) => {
         if (app.packageId == null) {
             throw new Error('no package name');
@@ -129,11 +110,11 @@ export default function App() {
         RNLauncherKitHelper.launchApplication(app.packageId);
     }, []);
 
-    const isCloseToBorder = useCallback((point: Point) => {
-        return (
-            point.y <= 100 || point.y >= Dimensions.get('screen').height - 100
-        );
-    }, []);
+    const isCloseToBorder = useCallback(
+        (point: Point) =>
+            point.y <= 100 || point.y >= Dimensions.get('screen').height - 100,
+        [],
+    );
 
     const onPanStart = useCallback(
         (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
@@ -199,15 +180,21 @@ export default function App() {
                 }
             }
         },
-        [onPanEnd, onPanStart],
+        [isCloseToBorder, onPanEnd, onPanStart],
     );
 
-    useEffect(() => {
-        if (shouldShowPie) {
-            Vibration.vibrate(10);
-        }
-    }, [shouldShowPie]);
+    useEffect(
+        function vibrateOnPieAppearance() {
+            if (shouldShowPie) {
+                Vibration.vibrate(10);
+            }
+        },
+        [shouldShowPie],
+    );
 
+    /**
+     * Event fired on thumb move.
+     */
     const onGestureEvent = useCallback(
         (event: GestureEvent<PanGestureHandlerEventPayload>) => {
             const touchPoint = {
@@ -288,55 +275,49 @@ export default function App() {
                 >
                     <View style={styles.fullScreen}>
                         {shouldShowPie &&
-                            center != null &&
-                            itemPositions.map(item => (
+                            scaledPieItems.map(item => (
                                 <View
                                     style={[
                                         styles.app,
-                                        { left: item.left, top: item.top },
-                                        hoveredItem?.id === item.id && {
-                                            backgroundColor: item.accent,
+                                        { left: item.x, top: item.y },
+                                        {
+                                            height: Math.floor(
+                                                PIE_ITEM_BASE_SIZE * item.scale,
+                                            ),
+                                            width: Math.floor(
+                                                PIE_ITEM_BASE_SIZE * item.scale,
+                                            ),
                                         },
                                     ]}
                                     key={item.id}
                                 >
-                                    <View
-                                        style={{
-                                            position: 'relative',
-                                            width: '100%',
-                                            height: '100%',
-                                            justifyContent: 'center',
-                                        }}
-                                    >
-                                        {item.toLayerId == null ? (
-                                            <Image
-                                                style={[
-                                                    styles.icon,
-                                                    {
-                                                        ...(item.toLayerId !=
-                                                            null && {
-                                                            marginLeft: 7,
-                                                        }),
-                                                    },
-                                                ]}
-                                                src={item.iconUrl}
-                                            />
-                                        ) : (
-                                            <Text
-                                                style={[
-                                                    {
-                                                        fontSize: 32,
-                                                        fontWeight: 700,
-                                                        marginLeft: 'auto',
-                                                        marginRight: 'auto',
-                                                        color: 'white',
-                                                    },
-                                                ]}
-                                            >
-                                                {item.toLayerId}
-                                            </Text>
-                                        )}
-                                    </View>
+                                    {item.toLayerId == null ? (
+                                        <Image
+                                            style={styles.icon}
+                                            src={item.iconUrl}
+                                        />
+                                    ) : (
+                                        <Text
+                                            style={[
+                                                styles.layerItem,
+                                                {
+                                                    fontSize: Math.floor(
+                                                        44 * item.scale,
+                                                    ),
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    textAlign: 'center',
+                                                    textAlignVertical: 'center',
+                                                },
+                                                hoveredItem?.id === item.id && {
+                                                    backgroundColor:
+                                                        item.accent,
+                                                },
+                                            ]}
+                                        >
+                                            {item.toLayerId}
+                                        </Text>
+                                    )}
                                 </View>
                             ))}
                     </View>
@@ -345,6 +326,8 @@ export default function App() {
         </View>
     );
 }
+
+const PIE_ITEM_BASE_SIZE = 57;
 
 const styles = StyleSheet.create({
     container: {
@@ -359,8 +342,6 @@ const styles = StyleSheet.create({
     app: {
         position: 'absolute',
         borderRadius: '100%',
-        width: 88,
-        height: 88,
         transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
         justifyContent: 'center',
         alignItems: 'center',
@@ -370,8 +351,16 @@ const styles = StyleSheet.create({
         top: '50%',
         left: '50%',
         margin: 'auto',
-        width: '65%',
-        height: '65%',
+        width: '100%',
+        height: '100%',
         transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
+    },
+    layerItem: {
+        // fontSize: 32,
+        fontWeight: 700,
+        marginLeft: 'auto',
+        marginRight: 'auto',
+        color: 'white',
+        borderRadius: 100,
     },
 });
