@@ -7,13 +7,13 @@ import {
     View,
 } from 'react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { LayersSchema, useLayers } from './use-layers.ts';
+import { LayersSchema, useLayerConfig } from './use-layer-config.ts';
 import { useInstalledApps } from './use-installed-apps.ts';
 import { ZodError } from 'zod';
 
 export default function PieCustomizer({ exit }: { exit: () => void }) {
     const { apps } = useInstalledApps();
-    const { layers, setLayers } = useLayers();
+    const { layers, setLayers } = useLayerConfig();
     const [layersStr, setLayersStr] = useState<string>(
         JSON.stringify(layers, undefined, 2),
     );

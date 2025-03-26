@@ -35,57 +35,50 @@ import {
     scaleItems,
 } from './pieUtils.ts';
 import PieCustomizer from './PieCustomizer.tsx';
-import { Layer, useLayers } from './use-layers.ts';
-import { alpharize } from './colorUtils.ts';
+import {
+    Layer,
+    LayerItem,
+    Layers,
+    useLayerConfig,
+} from './use-layer-config.ts';
+import { convertToRGBA } from './colorUtils.ts';
+import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
 
 export default function App() {
-    const { layers } = useLayers();
+    const { layers } = useLayerConfig();
     const { apps } = useInstalledApps();
 
-    const [shouldShowPie, setShouldShowPie] = useState(false);
     const [center, setCenter] = useState<Point | undefined>();
-    const [finalTouch, setFinalTouch] = useState<Point | undefined>();
+    const [currentTouchPoint, setCurrentTouchPoint] = useState<
+        Point | undefined
+    >();
     const [hoveredItem, setHoveredItem] = useState<PieItemWithDistance>();
     const [currentLayerId, setCurrentLayerId] = useState(1);
     const [isCustomizing, setIsCustomizing] = useState(false);
 
-    const currentLayer = useMemo<Layer>(() => {
-        return layers.find(layer => layer.id === currentLayerId)!;
+    const shouldShowPie = useMemo(() => {
+        return center != null;
+    }, [center]);
+
+    const currentLayer = useMemo<Layer | undefined>(() => {
+        return layers.find(layer => layer.id === currentLayerId);
     }, [currentLayerId, layers]);
 
-    const pieItems = useMemo<PieItem[]>(() => {
-        return currentLayer.items
-            .map(item => {
-                if (typeof item === 'number') {
-                    return {
-                        id: `pie-link-${item}`,
-                        toLayerId: item,
-                        accent:
-                            layers.find(l => l.id === item)?.color ?? '#FFFFFF',
-                    } as PieItem;
-                }
-
-                const appDetail = apps.find(a => a.packageName === item);
-
-                if (appDetail == null) {
-                    return undefined;
-                }
-
-                return {
-                    id: `pie-app-${appDetail.packageName}`,
-                    iconUrl: appDetail.icon,
-                    packageId: appDetail.packageName,
-                    accent: appDetail.accentColor ?? '#000000',
-                } as PieItem;
-            })
-            .filter((i: PieItem | undefined): i is PieItem => !!i);
-    }, [apps, currentLayer.items, layers]);
+    const pieItems = useMemo<PieItem[]>(
+        () =>
+            ((currentLayer?.items ?? []) as LayerItem[])
+                // convert items from the layer configuration into internal pie items.
+                // Either an app link or a link to another pie layer.
+                .map(i => toPieItem(i, layers, apps))
+                // filter out apps that could not have been resolved
+                .filter((i: PieItem | undefined): i is PieItem => !!i),
+        [apps, currentLayer?.items, layers],
+    );
 
     const reset = useCallback(() => {
-        setShouldShowPie(false);
         setHoveredItem(undefined);
         setCurrentLayerId(1);
-        setFinalTouch(undefined);
+        setCurrentTouchPoint(undefined);
         setCenter(undefined);
     }, []);
 
@@ -95,14 +88,14 @@ export default function App() {
     );
 
     const scaledPieItems = useMemo(() => {
-        const tp = finalTouch ?? center;
+        const tp = currentTouchPoint ?? center;
 
         if (tp == null || center == null) {
             return [];
         }
 
         return scaleItems(tp, center, itemPositions);
-    }, [center, finalTouch, itemPositions]);
+    }, [center, currentTouchPoint, itemPositions]);
 
     const onAppSelect = useCallback((app: PieItem) => {
         if (app.packageId == null) {
@@ -119,22 +112,13 @@ export default function App() {
     );
 
     const onPanStart = useCallback(
-        (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
-            if (
-                isCloseToBorder({
-                    x: event.nativeEvent.x,
-                    y: event.nativeEvent.y,
-                })
-            ) {
+        (point: Point) => {
+            if (isCloseToBorder(point)) {
                 return;
             }
 
-            let newCenter = getSafePosition({
-                x: event.nativeEvent.x,
-                y: event.nativeEvent.y,
-            });
+            let newCenter = getSafePosition(point);
 
-            setShouldShowPie(true);
             setHoveredItem(undefined);
             setCenter(newCenter);
         },
@@ -142,8 +126,11 @@ export default function App() {
     );
 
     const onPanEnd = useCallback(() => {
-        if (center && finalTouch) {
-            const closestItem = findClosestItem(finalTouch, itemPositions);
+        if (center && currentTouchPoint) {
+            const closestItem = findClosestItem(
+                currentTouchPoint,
+                itemPositions,
+            );
             if (
                 closestItem != null &&
                 !closestItem.toLayerId &&
@@ -156,33 +143,38 @@ export default function App() {
         reset();
     }, [
         center,
-        finalTouch,
+        currentTouchPoint,
         reset,
         itemPositions,
         hoveredItem?.id,
         onAppSelect,
     ]);
 
-    const onHandlerStateChange = useCallback(
-        (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
-            if (event.nativeEvent.state === State.BEGAN) {
-                onPanStart(event);
-            } else if (event.nativeEvent.state === State.END) {
+    const onPanFailed = useCallback(
+        (point: Point) => {
+            if (isCloseToBorder(point)) {
+                setIsCustomizing(true);
+            } else {
                 onPanEnd();
-            } else if (event.nativeEvent.state === State.FAILED) {
-                if (
-                    isCloseToBorder({
-                        x: event.nativeEvent.x,
-                        y: event.nativeEvent.y,
-                    })
-                ) {
-                    setIsCustomizing(true);
-                } else {
-                    onPanEnd();
-                }
             }
         },
-        [isCloseToBorder, onPanEnd, onPanStart],
+        [isCloseToBorder, onPanEnd],
+    );
+
+    const onHandlerStateChange = useCallback(
+        (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
+            const point = { x: event.nativeEvent.x, y: event.nativeEvent.y };
+            const state = event.nativeEvent.state;
+
+            if (state === State.BEGAN) {
+                onPanStart(point);
+            } else if (state === State.END) {
+                onPanEnd();
+            } else if (state === State.FAILED) {
+                onPanFailed(point);
+            }
+        },
+        [onPanEnd, onPanFailed, onPanStart],
     );
 
     useEffect(
@@ -203,7 +195,7 @@ export default function App() {
                 x: event.nativeEvent.x,
                 y: event.nativeEvent.y,
             };
-            setFinalTouch(touchPoint);
+            setCurrentTouchPoint(touchPoint);
 
             const closestItem = findClosestItem(touchPoint, itemPositions);
             if (closestItem != null && center != null) {
@@ -232,28 +224,77 @@ export default function App() {
 
     const timeout = useRef<NodeJS.Timeout>(null);
 
-    useEffect(() => {
-        if (hoveredItem?.toLayerId != null) {
-            timeout.current = setTimeout(() => {
-                if (hoveredItem?.toLayerId != null) {
-                    setCurrentLayerId(hoveredItem.toLayerId);
-                    setCenter(
-                        getSafePosition({
-                            x: hoveredItem.x,
-                            y: hoveredItem.y,
-                        }),
-                    );
-                    setHoveredItem(undefined);
-                }
-            }, 300);
+    useEffect(
+        /**
+         * When a link item is hovered for 300ms, the next pie is rendered.
+         */
+        function navigateOnHold() {
+            if (hoveredItem?.toLayerId != null) {
+                timeout.current = setTimeout(() => {
+                    if (hoveredItem?.toLayerId != null) {
+                        setCurrentLayerId(hoveredItem.toLayerId);
+                        setCenter(
+                            getSafePosition({
+                                x: hoveredItem.x,
+                                y: hoveredItem.y,
+                            }),
+                        );
+                        setHoveredItem(undefined);
+                    }
+                }, 300);
 
-            return () => {
-                if (timeout.current) {
-                    clearTimeout(timeout.current);
-                }
-            };
-        }
-    }, [hoveredItem]);
+                return () => {
+                    if (timeout.current) {
+                        clearTimeout(timeout.current);
+                    }
+                };
+            }
+        },
+        [hoveredItem],
+    );
+
+    const pie = useMemo(
+        () =>
+            scaledPieItems.map(item => (
+                <View
+                    style={[
+                        styles.app,
+                        { left: item.x, top: item.y },
+                        {
+                            height: Math.floor(PIE_ITEM_BASE_SIZE * item.scale),
+                            width: Math.floor(PIE_ITEM_BASE_SIZE * item.scale),
+                        },
+                    ]}
+                    key={item.id}
+                >
+                    {item.toLayerId == null ? (
+                        <Image style={styles.icon} src={item.iconUrl} />
+                    ) : (
+                        <Text
+                            style={[
+                                styles.layerItem,
+                                {
+                                    fontSize: Math.floor(44 * item.scale),
+                                },
+                                {
+                                    backgroundColor:
+                                        'rgba' +
+                                        convertToRGBA(
+                                            item.accent,
+                                            hoveredItem?.id === item.id
+                                                ? '1.0'
+                                                : '0.5',
+                                        ),
+                                },
+                            ]}
+                        >
+                            {item.toLayerId}
+                        </Text>
+                    )}
+                </View>
+            )),
+        [hoveredItem?.id, scaledPieItems],
+    );
 
     if (isCustomizing) {
         return (
@@ -276,60 +317,47 @@ export default function App() {
                     onHandlerStateChange={onHandlerStateChange}
                 >
                     <View style={styles.fullScreen}>
-                        {shouldShowPie &&
-                            scaledPieItems.map(item => (
-                                <View
-                                    style={[
-                                        styles.app,
-                                        { left: item.x, top: item.y },
-                                        {
-                                            height: Math.floor(
-                                                PIE_ITEM_BASE_SIZE * item.scale,
-                                            ),
-                                            width: Math.floor(
-                                                PIE_ITEM_BASE_SIZE * item.scale,
-                                            ),
-                                        },
-                                    ]}
-                                    key={item.id}
-                                >
-                                    {item.toLayerId == null ? (
-                                        <Image
-                                            style={styles.icon}
-                                            src={item.iconUrl}
-                                        />
-                                    ) : (
-                                        <Text
-                                            style={[
-                                                styles.layerItem,
-                                                {
-                                                    fontSize: Math.floor(
-                                                        44 * item.scale,
-                                                    ),
-                                                },
-                                                {
-                                                    backgroundColor:
-                                                        'rgba' +
-                                                        alpharize(
-                                                            item.accent,
-                                                            hoveredItem?.id ===
-                                                                item.id
-                                                                ? '1.0'
-                                                                : '0.5',
-                                                        ),
-                                                },
-                                            ]}
-                                        >
-                                            {item.toLayerId}
-                                        </Text>
-                                    )}
-                                </View>
-                            ))}
+                        {shouldShowPie && pie}
                     </View>
                 </PanGestureHandler>
             </GestureHandlerRootView>
         </View>
     );
+}
+
+/**
+ * Converts a layer item into a PieItem representation.
+ *
+ * @param item - The item to convert, either a layer ID (number) or a package name (string).
+ * @param layers - The mapping of layer IDs to their details.
+ * @param apps - The list of app details to lookup package information.
+ * @returns The corresponding PieItem or undefined if no matching app is found.
+ */
+function toPieItem(
+    item: LayerItem,
+    layers: Layers,
+    apps: AppDetail[],
+): PieItem | undefined {
+    if (typeof item === 'number') {
+        return {
+            id: `pie-link-${item}`,
+            toLayerId: item,
+            accent: layers.find(l => l.id === item)?.color ?? '#FFFFFF',
+        } as PieItem;
+    }
+
+    const appDetail = apps.find(a => a.packageName === item);
+
+    if (appDetail == null) {
+        return undefined;
+    }
+
+    return {
+        id: `pie-app-${appDetail.packageName}`,
+        iconUrl: appDetail.icon,
+        packageId: appDetail.packageName,
+        accent: appDetail.accentColor ?? '#000000',
+    } as PieItem;
 }
 
 const PIE_ITEM_BASE_SIZE = 57;

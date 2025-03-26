@@ -1,5 +1,5 @@
 {
-    "name": "PieLauncher",
+    "name": "pie-launcher",
     "version": "0.0.1",
     "private": true,
     "scripts": {
@@ -10,15 +10,11 @@
         "test": "jest"
     },
     "dependencies": {
-        "@react-native-vector-icons/common": "^11.0.0",
-        "@react-native-vector-icons/evil-icons": "^1.10.1",
-        "@react-native-vector-icons/fontawesome6": "^6.7.1",
         "react": "19.0.0",
         "react-native": "0.78.1",
         "react-native-gesture-handler": "^2.24.0",
         "react-native-launcher-kit": "^2.1.0",
         "react-native-mmkv-storage": "^0.11.2",
-        "react-native-safe-area-context": "^5.3.0",
         "zod": "^3.24.2"
     },
     "devDependencies": {

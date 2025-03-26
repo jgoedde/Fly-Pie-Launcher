@@ -2,25 +2,32 @@ import { useMMKVStorage } from 'react-native-mmkv-storage';
 import { storage } from './storage.ts';
 import { z } from 'zod';
 
-export const LayerPieItemPackage = z.string().nonempty();
+export const LayerPieItemPackageSchema = z.string().nonempty();
 
-export const LayerPieItemLink = z.number().min(1);
+export const LayerPieItemLinkSchema = z.number().min(1);
+
+const LayerItemSchema = z.union([
+    LayerPieItemPackageSchema,
+    LayerPieItemLinkSchema,
+]);
+
+export type LayerItem = z.infer<typeof LayerItemSchema>;
 
 export const LayerSchema = z.object({
     id: z.number().min(1),
     name: z.string().nonempty(),
     color: z.string().min(4).max(9).regex(/^#/),
     isBaseLayer: z.boolean().optional().catch(false),
-    items: z.array(z.union([LayerPieItemPackage, LayerPieItemLink])),
+    items: z.array(LayerItemSchema),
 });
 
 export type Layer = z.infer<typeof LayerSchema>;
 
 export const LayersSchema = z.array(LayerSchema).min(1);
 
-export type LayerMap = z.infer<typeof LayersSchema>;
+export type Layers = z.infer<typeof LayersSchema>;
 
-const DEFAULT_LAYERS: LayerMap = [
+const DEFAULT_LAYERS: Layers = [
     {
         id: 1,
         name: 'Home',
@@ -48,8 +55,8 @@ const DEFAULT_LAYERS: LayerMap = [
     },
 ];
 
-export function useLayers() {
-    const [layers, setLayers] = useMMKVStorage<LayerMap>(
+export function useLayerConfig() {
+    const [layers, setLayers] = useMMKVStorage<Layers>(
         'layers',
         storage,
         DEFAULT_LAYERS,
