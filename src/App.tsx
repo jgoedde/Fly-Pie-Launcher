@@ -237,8 +237,8 @@ export default function App() {
                     setCurrentLayerId(hoveredItem.toLayerId);
                     setCenter(
                         getSafePosition({
-                            x: hoveredItem.left,
-                            y: hoveredItem.top,
+                            x: hoveredItem.x,
+                            y: hoveredItem.y,
                         }),
                     );
                     setHoveredItem(undefined);
