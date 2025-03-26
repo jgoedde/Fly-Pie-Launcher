@@ -36,6 +36,7 @@ import {
 } from './pieUtils.ts';
 import PieCustomizer from './PieCustomizer.tsx';
 import { Layer, useLayers } from './use-layers.ts';
+import { alpharize } from './colorUtils.ts';
 
 export default function App() {
     const { layers } = useLayers();
@@ -55,11 +56,12 @@ export default function App() {
     const pieItems = useMemo<PieItem[]>(() => {
         return currentLayer.items
             .map(item => {
-                if (typeof item === 'object') {
+                if (typeof item === 'number') {
                     return {
-                        id: `pie-link-${item.linkId}`,
-                        toLayerId: item.linkId,
-                        accent: item.accentColor,
+                        id: `pie-link-${item}`,
+                        toLayerId: item,
+                        accent:
+                            layers.find(l => l.id === item)?.color ?? '#FFFFFF',
                     } as PieItem;
                 }
 
@@ -73,11 +75,11 @@ export default function App() {
                     id: `pie-app-${appDetail.packageName}`,
                     iconUrl: appDetail.icon,
                     packageId: appDetail.packageName,
-                    accent: appDetail.accentColor ?? '#000',
+                    accent: appDetail.accentColor ?? '#000000',
                 } as PieItem;
             })
             .filter((i: PieItem | undefined): i is PieItem => !!i);
-    }, [apps, currentLayer.items]);
+    }, [apps, currentLayer.items, layers]);
 
     const reset = useCallback(() => {
         setShouldShowPie(false);
@@ -304,14 +306,17 @@ export default function App() {
                                                     fontSize: Math.floor(
                                                         44 * item.scale,
                                                     ),
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    textAlign: 'center',
-                                                    textAlignVertical: 'center',
                                                 },
-                                                hoveredItem?.id === item.id && {
+                                                {
                                                     backgroundColor:
-                                                        item.accent,
+                                                        'rgba' +
+                                                        alpharize(
+                                                            item.accent,
+                                                            hoveredItem?.id ===
+                                                                item.id
+                                                                ? '1.0'
+                                                                : '0.5',
+                                                        ),
                                                 },
                                             ]}
                                         >
@@ -356,10 +361,13 @@ const styles = StyleSheet.create({
         transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
     },
     layerItem: {
-        // fontSize: 32,
         fontWeight: 700,
         marginLeft: 'auto',
         marginRight: 'auto',
+        width: '100%',
+        height: '100%',
+        textAlign: 'center',
+        textAlignVertical: 'center',
         color: 'white',
         borderRadius: 100,
     },

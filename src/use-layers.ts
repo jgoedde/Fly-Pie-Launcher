@@ -4,16 +4,13 @@ import { z } from 'zod';
 
 export const LayerPieItemPackage = z.string().nonempty();
 
-export const LayerPieItemLink = z.object({
-    linkId: z.number().min(1),
-    faIconCode: z.string().nonempty(),
-    accentColor: z.string().nonempty(),
-});
+export const LayerPieItemLink = z.number().min(1);
 
 export const LayerSchema = z.object({
     id: z.number().min(1),
     name: z.string().nonempty(),
-    isBaseLayer: z.boolean(),
+    color: z.string().min(4).max(9).regex(/^#/),
+    isBaseLayer: z.boolean().optional().catch(false),
     items: z.array(z.union([LayerPieItemPackage, LayerPieItemLink])),
 });
 
@@ -28,6 +25,7 @@ const DEFAULT_LAYERS: LayerMap = [
         id: 1,
         name: 'Home',
         isBaseLayer: true,
+        color: '#AEAEAE',
         items: [
             'me.zhanghai.android.files',
             'com.android.phone',
@@ -39,18 +37,14 @@ const DEFAULT_LAYERS: LayerMap = [
             'com.google.android.apps.maps',
             'app.revanced.android.apps.youtube.music',
             'com.google.android.deskclock',
-            // { linkId: 2, faIconCode: 'arrow-up', accentColor: '#800080' },
+            2,
         ],
     },
     {
         id: 2,
         name: 'Second level',
-        isBaseLayer: false,
-        items: [
-            { linkId: 1, faIconCode: 'arrow-down', accentColor: '#ff0000' },
-            'app.revanced.android.youtube',
-            'me.zhanghai.android.files',
-        ],
+        color: '#EAEAEA',
+        items: [1, 'app.revanced.android.youtube', 'me.zhanghai.android.files'],
     },
 ];
 
