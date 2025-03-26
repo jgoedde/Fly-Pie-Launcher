@@ -289,24 +289,6 @@ export default function App() {
                     <View style={styles.fullScreen}>
                         {shouldShowPie &&
                             center != null &&
-                            !currentLayer.isBaseLayer && (
-                                <Text
-                                    style={{
-                                        position: 'absolute',
-                                        left: center.x,
-                                        top: center.y - 60,
-                                        fontSize: 32,
-                                        transform: [
-                                            { translateX: '-50%' },
-                                            { translateY: '-50%' },
-                                        ],
-                                    }}
-                                >
-                                    {currentLayer.name}
-                                </Text>
-                            )}
-                        {shouldShowPie &&
-                            center != null &&
                             itemPositions.map(item => (
                                 <View
                                     style={[
