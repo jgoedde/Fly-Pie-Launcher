@@ -34,6 +34,8 @@ An Android launcher that lets you navigate within a pie menu, allowing you to us
   - [ ] Layer switch
 - [ ] Build alpha release APK for public use -- **v0.1**
 - [ ] A one-tap gesture displays a grid of all your apps. The app below the location you tap will open.
+- [ ] Opt-In for themed app icons
+- [ ] Widgets support
 
 ## Building
 
