@@ -1,32 +1,108 @@
 import { Dimensions } from 'react-native';
+import { PackageName } from './use-installed-apps.ts';
 
 const windowDimensions = Dimensions.get('window');
 
-export type Point = { x: number; y: number };
-export type PieItem = {
-    accent: string;
+export interface Point {
+    x: number;
+    y: number;
+}
+
+interface BasePieItem extends Point {
+    /**
+     * The internal ID of an item within the pie.
+     */
     id: string;
 
     /**
-     * An optional link to another pie layer.
+     * The scaling of an item within the pie.
+     * min: 0.85;
+     * max: 1.3;
      */
-    toLayerId?: number;
-    iconUrl?: string;
-    packageId?: string;
+    scaleFactor: number;
+
+    type: 'app' | 'layerSwitch' | 'browserAction';
+}
+
+export type AppPieItem = BasePieItem & {
+    iconBase64: string;
+    packageName: PackageName;
+    type: 'app';
 };
-export type PieItemWithDistance = PieItem & {
-    x: number;
-    y: number;
-    distance: number;
+
+export function createDefaultAppPieItem(
+    id: string,
+    iconBase64: string,
+    packageName: PackageName,
+): AppPieItem {
+    return {
+        iconBase64,
+        scaleFactor: 1,
+        y: 0,
+        packageName,
+        x: 0,
+        type: 'app',
+        id,
+    };
+}
+
+export type LayerSwitchPieItem = BasePieItem & {
+    accent: string;
+    targetLayerId: number;
+    type: 'layerSwitch';
 };
+
+export function createDefaultLayerSwitchPieItem(
+    id: string,
+    accent: string,
+    targetLayerId: number,
+): LayerSwitchPieItem {
+    return {
+        scaleFactor: 1,
+        y: 0,
+        x: 0,
+        type: 'layerSwitch',
+        id,
+        targetLayerId,
+        accent,
+    };
+}
+
+export type BrowserActionPieItem = BasePieItem & {
+    iconBase64: string;
+    accent: string;
+    url: string;
+    type: 'browserAction';
+};
+
+export function createDefaultBrowserActionPieItem(
+    id: string,
+    accent: string,
+    url: string,
+    iconBase64: string,
+): BrowserActionPieItem {
+    return {
+        scaleFactor: 1,
+        y: 0,
+        x: 0,
+        type: 'browserAction',
+        id,
+        url,
+        accent,
+        iconBase64,
+    };
+}
+
+export type PieItem = AppPieItem | LayerSwitchPieItem | BrowserActionPieItem;
+
 export const CIRCLE_RADIUS = 120; // Distance from center
 export const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 
 /** Calculates positions for the items around the center */
-export function calculateItemPositions<T>(
+export function calculateItemPositions(
     center: Point,
-    items: T[],
-): (T & Point)[] {
+    items: PieItem[],
+): PieItem[] {
     return items.map((item, i) => {
         const angle = (i / items.length) * (2 * Math.PI) - Math.PI / 2; // Start from top (12 o'clock)
 
@@ -39,11 +115,11 @@ export function calculateItemPositions<T>(
 }
 
 /** Finds the closest app based on the touch position */
-export function findClosestItem<T extends Point>(
+export function findClosestItem(
     touchPoint: Point,
-    items: T[],
-): (T & { distance: number }) | null {
-    let closestItem: (T & { distance: number }) | null = null;
+    items: PieItem[],
+): PieItem | null {
+    let closestItem: PieItem | null = null;
     let minDistance = Infinity;
 
     items.forEach(app => {
@@ -53,7 +129,7 @@ export function findClosestItem<T extends Point>(
         );
         if (distance < minDistance) {
             minDistance = distance;
-            closestItem = { ...app, distance };
+            closestItem = app;
         }
     });
 
@@ -95,11 +171,11 @@ export const getSafePosition = (point: Point) => {
  * @param items - An array of items with x, y coordinates.
  * @returns The items with an additional `scale` property.
  */
-export function scaleItems<T extends Point>(
+export function scaleItems(
     touchPoint: Point,
     initialPoint: Point,
-    items: T[],
-): (T & { scale: number })[] {
+    items: PieItem[],
+): PieItem[] {
     if (items.length === 0) {
         return [];
     }
@@ -125,8 +201,8 @@ export function scaleItems<T extends Point>(
     const minDistance = Math.min(...distances.map(d => d.distance));
     const maxDistance = Math.max(...distances.map(d => d.distance));
 
-    const minScale = 0.88;
-    const maxScale = 1.33;
+    const minScale = 0.85;
+    const maxScale = 1.3;
 
     return distances.map(({ item, distance }) => {
         const normalizedDistance =
@@ -135,6 +211,10 @@ export function scaleItems<T extends Point>(
                 : (maxDistance - distance) / (maxDistance - minDistance);
         const scale =
             minScale + (maxScale - minScale) * normalizedDistance * scaleFactor;
-        return { ...item, scale };
+        return { ...item, scaleFactor: scale };
     });
+}
+
+export function getDistance(a: Point, b: Point): number {
+    return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
 }

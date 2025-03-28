@@ -24,13 +24,16 @@ import { HandlerStateChangeEvent } from 'react-native-gesture-handler/lib/typesc
 import type { PanGestureHandlerEventPayload } from 'react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload';
 import { useInstalledApps } from './use-installed-apps.ts';
 import {
+    AppPieItem,
     calculateItemPositions,
     CIRCLE_RADIUS,
+    createDefaultAppPieItem,
+    createDefaultLayerSwitchPieItem,
     findClosestItem,
+    getDistance,
     getSafePosition,
     HOVER_THRESHOLD,
     PieItem,
-    PieItemWithDistance,
     Point,
     scaleItems,
 } from './pieUtils.ts';
@@ -43,17 +46,16 @@ import {
 import { convertToRGBA } from './colorUtils.ts';
 import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
 import PieCustomizer from './PieCustomizer.tsx';
-import { ShortcutUtils } from './ShortcutUtils.ts';
 
 export default function App() {
     const { layers } = useLayerConfig();
-    const { apps } = useInstalledApps();
+    const { apps, defaultBrowser } = useInstalledApps();
 
     const [center, setCenter] = useState<Point | undefined>();
     const [currentTouchPoint, setCurrentTouchPoint] = useState<
         Point | undefined
     >();
-    const [hoveredApp, setHoveredApp] = useState<PieItemWithDistance>();
+    const [hoveredItem, setHoveredItem] = useState<PieItem>();
     const [currentLayerId, setCurrentLayerId] = useState(1);
     const [isCustomizing, setIsCustomizing] = useState(false);
 
@@ -65,60 +67,38 @@ export default function App() {
         return layers.find(layer => layer.id === currentLayerId);
     }, [currentLayerId, layers]);
 
-    const pieItems = useMemo<PieItem[]>(
-        () =>
-            ((currentLayer?.items ?? []) as LayerItem[])
-                // convert items from the layer configuration into internal pie items.
-                // Either an app link or a link to another pie layer.
-                .map(i => toPieItem(i, layers, apps))
-                // filter out apps that could not have been resolved
-                .filter((i: PieItem | undefined): i is PieItem => !!i),
-        [apps, currentLayer?.items, layers],
-    );
-
     const reset = useCallback(() => {
-        setHoveredApp(undefined);
+        setHoveredItem(undefined);
         setCurrentLayerId(1);
         setCurrentTouchPoint(undefined);
         setCenter(undefined);
     }, []);
 
-    useEffect(() => {
-        if (hoveredApp?.packageId != null) {
-            ShortcutUtils.getShortcuts(hoveredApp.packageId).then(shortcuts => {
-                console.info('Got shortcuts!', shortcuts);
-                const shortcut = shortcuts[0];
-
-                if (!shortcut) {
-                    return;
-                }
-            });
-        }
-    }, [hoveredApp]);
-
-    const itemPositions = useMemo(
-        () => (center ? calculateItemPositions(center, pieItems) : []),
-        [pieItems, center],
-    );
-
-    const scaledPieItems = useMemo(() => {
+    const pieItems = useMemo(() => {
         const tp = currentTouchPoint ?? center;
 
         if (tp == null || center == null) {
             return [];
         }
 
-        return scaleItems(tp, center, itemPositions);
-    }, [center, currentTouchPoint, itemPositions]);
+        const items = ((currentLayer?.items ?? []) as LayerItem[])
+            // convert items from the layer configuration into internal pie items.
+            // Either an app link or a link to another pie layer.
+            .map(i => toPieItem(i, layers, apps))
+            // filter out apps that could not have been resolved
+            .filter((i: PieItem | undefined): i is PieItem => !!i);
+
+        return scaleItems(tp, center, calculateItemPositions(center, items));
+    }, [apps, center, currentLayer?.items, currentTouchPoint, layers]);
 
     const onAppSelect = useCallback(
-        (app: PieItem) => {
-            if (app.packageId == null) {
+        (item: AppPieItem) => {
+            if (item.packageName == null) {
                 throw new Error('no package name');
             }
 
             reset();
-            RNLauncherKitHelper.launchApplication(app.packageId);
+            RNLauncherKitHelper.launchApplication(item.packageName);
         },
         [reset],
     );
@@ -137,7 +117,7 @@ export default function App() {
 
             let newCenter = getSafePosition(point);
 
-            setHoveredApp(undefined);
+            setHoveredItem(undefined);
             setCenter(newCenter);
         },
         [isCloseToBorder],
@@ -145,14 +125,12 @@ export default function App() {
 
     const onPanEnd = useCallback(() => {
         if (center && currentTouchPoint) {
-            const closestItem = findClosestItem(
-                currentTouchPoint,
-                itemPositions,
-            );
+            const closestItem = findClosestItem(currentTouchPoint, pieItems);
+
             if (
                 closestItem != null &&
-                !closestItem.toLayerId &&
-                hoveredApp?.id === closestItem.id
+                hoveredItem?.id === closestItem.id &&
+                closestItem.type === 'app'
             ) {
                 onAppSelect(closestItem);
             }
@@ -163,8 +141,8 @@ export default function App() {
         center,
         currentTouchPoint,
         reset,
-        itemPositions,
-        hoveredApp?.id,
+        pieItems,
+        hoveredItem?.id,
         onAppSelect,
     ]);
 
@@ -215,29 +193,30 @@ export default function App() {
             };
             setCurrentTouchPoint(touchPoint);
 
-            const closestItem = findClosestItem(touchPoint, itemPositions);
+            const closestItem = findClosestItem(touchPoint, pieItems);
             if (closestItem != null && center != null) {
-                const distanceToCenter = Math.sqrt(
-                    Math.pow(touchPoint.x - center.x, 2) +
-                        Math.pow(touchPoint.y - center.y, 2),
+                const distanceClosestItemToTouchPoint = getDistance(
+                    touchPoint,
+                    { x: closestItem.x, y: closestItem.y },
                 );
+                const distanceToCenter = getDistance(touchPoint, center);
 
                 const isInsidePie = distanceToCenter <= CIRCLE_RADIUS;
                 const shouldHover = isInsidePie
-                    ? closestItem.distance <= HOVER_THRESHOLD
+                    ? distanceClosestItemToTouchPoint <= HOVER_THRESHOLD
                     : true;
 
-                if (shouldHover && closestItem.id !== hoveredApp?.id) {
-                    setHoveredApp(closestItem);
+                if (shouldHover && closestItem.id !== hoveredItem?.id) {
+                    setHoveredItem(closestItem);
                     Vibration.vibrate(10);
                 } else if (!shouldHover) {
-                    setHoveredApp(undefined);
+                    setHoveredItem(undefined);
                 }
             } else {
-                setHoveredApp(undefined);
+                setHoveredItem(undefined);
             }
         },
-        [center, itemPositions, hoveredApp],
+        [pieItems, center, hoveredItem?.id],
     );
 
     const timeout = useRef<NodeJS.Timeout>(null);
@@ -247,17 +226,17 @@ export default function App() {
          * When a link item is hovered for 300ms, the next pie is rendered.
          */
         function navigateOnHold() {
-            if (hoveredApp?.toLayerId != null) {
+            if (hoveredItem?.type === 'layerSwitch') {
                 timeout.current = setTimeout(() => {
-                    if (hoveredApp?.toLayerId != null) {
-                        setCurrentLayerId(hoveredApp.toLayerId);
+                    if (hoveredItem?.targetLayerId != null) {
+                        setCurrentLayerId(hoveredItem.targetLayerId);
                         setCenter(
                             getSafePosition({
-                                x: hoveredApp.x,
-                                y: hoveredApp.y,
+                                x: hoveredItem.x,
+                                y: hoveredItem.y,
                             }),
                         );
-                        setHoveredApp(undefined);
+                        setHoveredItem(undefined);
                     }
                 }, 300);
 
@@ -268,12 +247,48 @@ export default function App() {
                 };
             }
         },
-        [hoveredApp],
+        [hoveredItem],
+    );
+
+    const getPieItem = useCallback(
+        (item: PieItem) => {
+            if (item.type === 'app') {
+                return <Image style={styles.icon} src={item.iconBase64} />;
+            }
+
+            if (item.type === 'layerSwitch') {
+                return (
+                    <Text
+                        style={[
+                            styles.layerItem,
+                            {
+                                fontSize: Math.floor(44 * item.scaleFactor),
+                            },
+                            {
+                                backgroundColor:
+                                    'rgba' +
+                                    convertToRGBA(
+                                        item.accent,
+                                        hoveredItem?.id === item.id
+                                            ? '1.0'
+                                            : '0.5',
+                                    ),
+                            },
+                        ]}
+                    >
+                        {item.targetLayerId}
+                    </Text>
+                );
+            }
+
+            return null;
+        },
+        [hoveredItem?.id],
     );
 
     const pie = useMemo(
         () =>
-            scaledPieItems.map(item => (
+            pieItems.map(item => (
                 <View
                     style={[
                         styles.app,
@@ -285,33 +300,10 @@ export default function App() {
                     ]}
                     key={item.id}
                 >
-                    {item.toLayerId == null ? (
-                        <Image style={styles.icon} src={item.iconUrl} />
-                    ) : (
-                        <Text
-                            style={[
-                                styles.layerItem,
-                                {
-                                    fontSize: Math.floor(44 * item.scale),
-                                },
-                                {
-                                    backgroundColor:
-                                        'rgba' +
-                                        convertToRGBA(
-                                            item.accent,
-                                            hoveredApp?.id === item.id
-                                                ? '1.0'
-                                                : '0.5',
-                                        ),
-                                },
-                            ]}
-                        >
-                            {item.toLayerId}
-                        </Text>
-                    )}
+                    {getPieItem(item)}
                 </View>
             )),
-        [hoveredApp?.id, scaledPieItems],
+        [getPieItem, pieItems],
     );
 
     if (isCustomizing) {
@@ -357,11 +349,11 @@ function toPieItem(
     apps: AppDetail[],
 ): PieItem | undefined {
     if (typeof item === 'number') {
-        return {
-            id: `pie-link-${item}`,
-            toLayerId: item,
-            accent: layers.find(l => l.id === item)?.color ?? '#FFFFFF',
-        } as PieItem;
+        return createDefaultLayerSwitchPieItem(
+            `pie-link-${item}`,
+            layers.find(l => l.id === item)?.color ?? '#FFFFFF',
+            item,
+        );
     }
 
     const appDetail = apps.find(a => a.packageName === item);
@@ -370,12 +362,11 @@ function toPieItem(
         return undefined;
     }
 
-    return {
-        id: `pie-app-${appDetail.packageName}`,
-        iconUrl: appDetail.icon,
-        packageId: appDetail.packageName,
-        accent: appDetail.accentColor ?? '#000000',
-    } as PieItem;
+    return createDefaultAppPieItem(
+        `pie-app-${appDetail.packageName}`,
+        appDetail.icon,
+        appDetail.packageName,
+    );
 }
 
 const PIE_ITEM_BASE_SIZE = 57;

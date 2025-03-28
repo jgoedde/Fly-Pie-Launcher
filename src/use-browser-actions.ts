@@ -12,7 +12,7 @@ type BrowserAction = z.infer<typeof BrowserActionSchema>;
 
 const BrowserActionsSchema = z.array(BrowserActionSchema);
 
-type BrowserActions = z.infer<typeof BrowserActionsSchema>;
+export type BrowserActions = z.infer<typeof BrowserActionsSchema>;
 
 const DEFAULT_BROWSER_ACTIONS: BrowserAction[] = [
     {
