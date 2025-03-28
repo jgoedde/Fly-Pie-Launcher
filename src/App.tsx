@@ -34,7 +34,6 @@ import {
     Point,
     scaleItems,
 } from './pieUtils.ts';
-import PieCustomizer from './PieCustomizer.tsx';
 import {
     Layer,
     LayerItem,
@@ -112,14 +111,17 @@ export default function App() {
         return scaleItems(tp, center, itemPositions);
     }, [center, currentTouchPoint, itemPositions]);
 
-    const onAppSelect = useCallback((app: PieItem) => {
-        if (app.packageId == null) {
-            throw new Error('no package name');
-        }
+    const onAppSelect = useCallback(
+        (app: PieItem) => {
+            if (app.packageId == null) {
+                throw new Error('no package name');
+            }
 
-        reset();
-        RNLauncherKitHelper.launchApplication(app.packageId);
-    }, [reset]);
+            reset();
+            RNLauncherKitHelper.launchApplication(app.packageId);
+        },
+        [reset],
+    );
 
     const isCloseToBorder = useCallback(
         (point: Point) =>
