@@ -1,0 +1,46 @@
+import { useMMKVStorage } from 'react-native-mmkv-storage';
+import { storage } from './storage.ts';
+import { z } from 'zod';
+
+const BrowserActionSchema = z.object({
+    image: z.string().optional(),
+    label: z.string(),
+    url: z.string().url(),
+});
+
+type BrowserAction = z.infer<typeof BrowserActionSchema>;
+
+const BrowserActionsSchema = z.array(BrowserActionSchema);
+
+type BrowserActions = z.infer<typeof BrowserActionsSchema>;
+
+const DEFAULT_BROWSER_ACTIONS: BrowserAction[] = [
+    {
+        image: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iNDhweCIgdmlld0JveD0iMCAwIDI0IDI0IiB3aWR0aD0iNDhweCIgZmlsbD0iI2UzZTNlMyI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0xNS41IDE0aC0uNzlsLS4yOC0uMjdDMTUuNDEgMTIuNTkgMTYgMTEuMTEgMTYgOS41IDE2IDUuOTEgMTMuMDkgMyA5LjUgM1MzIDUuOTEgMyA5LjUgNS45MSAxNiA5LjUgMTZjMS42MSAwIDMuMDktLjU5IDQuMjMtMS41N2wuMjcuMjh2Ljc5bDUgNC45OUwyMC40OSAxOWwtNC45OS01em0tNiAwQzcuMDEgMTQgNSAxMS45OSA1IDkuNVM3LjAxIDUgOS41IDUgMTQgNy4wMSAxNCA5LjUgMTEuOTkgMTQgOS41IDE0eiIvPjwvc3ZnPg==',
+        url: 'https://google.com',
+        label: 'Google',
+    },
+    {
+        image: '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',
+        url: 'https://www.duden.de/suchen/dudenonline',
+        label: 'Duden',
+    },
+    {
+        url: 'https://www.deepl.com/de/write#de',
+        label: 'DeepL Write',
+    },
+    {
+        url: 'https://www.deepl.com/de/translate#de',
+        label: 'DeepL Translate',
+    },
+];
+
+export function useBrowserActions() {
+    const [layers, setLayers] = useMMKVStorage<BrowserActions>(
+        'layers',
+        storage,
+        DEFAULT_BROWSER_ACTIONS,
+    );
+
+    return { layers, setLayers };
+}
