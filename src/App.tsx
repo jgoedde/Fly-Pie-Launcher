@@ -117,8 +117,9 @@ export default function App() {
             throw new Error('no package name');
         }
 
+        reset();
         RNLauncherKitHelper.launchApplication(app.packageId);
-    }, []);
+    }, [reset]);
 
     const isCloseToBorder = useCallback(
         (point: Point) =>
