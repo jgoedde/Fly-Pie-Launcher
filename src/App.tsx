@@ -44,6 +44,7 @@ import {
 import { convertToRGBA } from './colorUtils.ts';
 import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
 import PieCustomizer from './PieCustomizer.tsx';
+import { ShortcutUtils } from './ShortcutUtils.ts';
 
 export default function App() {
     const { layers } = useLayerConfig();
@@ -53,7 +54,7 @@ export default function App() {
     const [currentTouchPoint, setCurrentTouchPoint] = useState<
         Point | undefined
     >();
-    const [hoveredItem, setHoveredItem] = useState<PieItemWithDistance>();
+    const [hoveredApp, setHoveredApp] = useState<PieItemWithDistance>();
     const [currentLayerId, setCurrentLayerId] = useState(1);
     const [isCustomizing, setIsCustomizing] = useState(false);
 
@@ -77,11 +78,24 @@ export default function App() {
     );
 
     const reset = useCallback(() => {
-        setHoveredItem(undefined);
+        setHoveredApp(undefined);
         setCurrentLayerId(1);
         setCurrentTouchPoint(undefined);
         setCenter(undefined);
     }, []);
+
+    useEffect(() => {
+        if (hoveredApp?.packageId != null) {
+            ShortcutUtils.getShortcuts(hoveredApp.packageId).then(shortcuts => {
+                console.info('Got shortcuts!', shortcuts);
+                const shortcut = shortcuts[0];
+
+                if (!shortcut) {
+                    return;
+                }
+            });
+        }
+    }, [hoveredApp]);
 
     const itemPositions = useMemo(
         () => (center ? calculateItemPositions(center, pieItems) : []),
@@ -120,7 +134,7 @@ export default function App() {
 
             let newCenter = getSafePosition(point);
 
-            setHoveredItem(undefined);
+            setHoveredApp(undefined);
             setCenter(newCenter);
         },
         [isCloseToBorder],
@@ -135,7 +149,7 @@ export default function App() {
             if (
                 closestItem != null &&
                 !closestItem.toLayerId &&
-                hoveredItem?.id === closestItem.id
+                hoveredApp?.id === closestItem.id
             ) {
                 onAppSelect(closestItem);
             }
@@ -147,7 +161,7 @@ export default function App() {
         currentTouchPoint,
         reset,
         itemPositions,
-        hoveredItem?.id,
+        hoveredApp?.id,
         onAppSelect,
     ]);
 
@@ -210,17 +224,17 @@ export default function App() {
                     ? closestItem.distance <= HOVER_THRESHOLD
                     : true;
 
-                if (shouldHover && closestItem.id !== hoveredItem?.id) {
-                    setHoveredItem(closestItem);
+                if (shouldHover && closestItem.id !== hoveredApp?.id) {
+                    setHoveredApp(closestItem);
                     Vibration.vibrate(10);
                 } else if (!shouldHover) {
-                    setHoveredItem(undefined);
+                    setHoveredApp(undefined);
                 }
             } else {
-                setHoveredItem(undefined);
+                setHoveredApp(undefined);
             }
         },
-        [center, itemPositions, hoveredItem],
+        [center, itemPositions, hoveredApp],
     );
 
     const timeout = useRef<NodeJS.Timeout>(null);
@@ -230,17 +244,17 @@ export default function App() {
          * When a link item is hovered for 300ms, the next pie is rendered.
          */
         function navigateOnHold() {
-            if (hoveredItem?.toLayerId != null) {
+            if (hoveredApp?.toLayerId != null) {
                 timeout.current = setTimeout(() => {
-                    if (hoveredItem?.toLayerId != null) {
-                        setCurrentLayerId(hoveredItem.toLayerId);
+                    if (hoveredApp?.toLayerId != null) {
+                        setCurrentLayerId(hoveredApp.toLayerId);
                         setCenter(
                             getSafePosition({
-                                x: hoveredItem.x,
-                                y: hoveredItem.y,
+                                x: hoveredApp.x,
+                                y: hoveredApp.y,
                             }),
                         );
-                        setHoveredItem(undefined);
+                        setHoveredApp(undefined);
                     }
                 }, 300);
 
@@ -251,7 +265,7 @@ export default function App() {
                 };
             }
         },
-        [hoveredItem],
+        [hoveredApp],
     );
 
     const pie = useMemo(
@@ -282,7 +296,7 @@ export default function App() {
                                         'rgba' +
                                         convertToRGBA(
                                             item.accent,
-                                            hoveredItem?.id === item.id
+                                            hoveredApp?.id === item.id
                                                 ? '1.0'
                                                 : '0.5',
                                         ),
@@ -294,7 +308,7 @@ export default function App() {
                     )}
                 </View>
             )),
-        [hoveredItem?.id, scaledPieItems],
+        [hoveredApp?.id, scaledPieItems],
     );
 
     const fadeAnim = useRef(new Animated.Value(0)).current;

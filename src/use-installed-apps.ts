@@ -3,26 +3,36 @@ import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/Insta
 import { InstalledApps } from 'react-native-launcher-kit';
 import { useMMKVStorage } from 'react-native-mmkv-storage';
 import { storage } from './storage.ts';
+import { z } from 'zod';
+import { BrowserUtils } from './BrowserUtils.ts';
 
-export function useInstalledApps() {
+export const PackageNameSchema = z.string().nonempty();
+
+export type PackageName = z.infer<typeof PackageNameSchema>;
+
+export function useInstalledApps(): {
+    apps: AppDetail[];
+    defaultBrowser: PackageName | undefined;
+} {
     const [appDetails, setAppDetails] = useState<AppDetail[]>([]);
     const [appListCache, setAppListCache] = useMMKVStorage<AppDetail[]>(
         'applist-cache',
         storage,
         [],
     );
+    const [defaultBrowser, setDefaultBrowser] = useState<PackageName>();
 
     useEffect(() => {
-        console.log(appListCache, 'appListCache');
-    }, [appListCache]);
+        BrowserUtils.getDefaultBrowser().then(browser =>
+            setDefaultBrowser(browser === '' ? undefined : browser),
+        );
+    }, []);
 
     const queryApps = useCallback(async () => {
         const allApps = await InstalledApps.getApps({
             includeVersion: false,
             includeAccentColor: true,
         });
-
-        console.info('Queried installedApps', allApps);
 
         setAppDetails(allApps);
     }, []);
@@ -37,5 +47,5 @@ export function useInstalledApps() {
         }
     }, [appDetails, setAppListCache]);
 
-    return { apps: appListCache };
+    return { apps: appListCache, defaultBrowser };
 }
