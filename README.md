@@ -16,8 +16,11 @@ An Android launcher that lets you navigate within a pie menu, allowing you to us
 
 ## Screenshots
 
+<div style="display: flex">
 <img src="https://github.com/user-attachments/assets/50f0259e-8498-4a04-ab41-3f9ecf9a72eb" width="200" alt="showcase" />
-<img src="https://github.com/user-attachments/assets/7712a44b-2c6a-410c-8d47-023ed010eddc" width="200" />
+
+<img src="https://github.com/user-attachments/assets/0a6cb2bc-ad14-4c7d-a3c1-b30749f6eaf7" width="200" />
+</div>
 
 ## Roadmap
 
