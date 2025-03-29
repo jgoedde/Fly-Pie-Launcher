@@ -2,6 +2,8 @@ import { useMMKVStorage } from 'react-native-mmkv-storage';
 import { storage } from './storage.ts';
 import { z } from 'zod';
 
+export const BROWSER_ACTIONS_RESERVED_LAYER_ID = 9191;
+
 export const LayerPieItemPackageSchema = z.string().nonempty();
 
 export const LayerPieItemLinkSchema = z.number().min(1);
@@ -14,7 +16,13 @@ const LayerItemSchema = z.union([
 export type LayerItem = z.infer<typeof LayerItemSchema>;
 
 export const LayerSchema = z.object({
-    id: z.number().min(1),
+    id: z
+        .number()
+        .min(1)
+        .refine(num => num !== BROWSER_ACTIONS_RESERVED_LAYER_ID, {
+            message:
+                'Layer ID 9191 is an internal reserved ID, please use something else.',
+        }),
     name: z.string().nonempty(),
     color: z.string().min(4).max(9).regex(/^#/),
     isBaseLayer: z.boolean().optional().catch(false),

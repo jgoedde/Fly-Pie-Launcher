@@ -31,6 +31,7 @@ import {
     scaleItems,
 } from './pieUtils.ts';
 import {
+    BROWSER_ACTIONS_RESERVED_LAYER_ID,
     Layer,
     LayerItem,
     Layers,
@@ -83,7 +84,10 @@ export default function App() {
 
         const items: PieItem[] = [];
 
-        if (currentLayerId === 69420 && defaultBrowser != null) {
+        if (
+            currentLayerId === BROWSER_ACTIONS_RESERVED_LAYER_ID &&
+            defaultBrowser != null
+        ) {
             items.push(
                 ...browserActions.map(action =>
                     createDefaultBrowserActionPieItem(
@@ -272,12 +276,12 @@ export default function App() {
                 case 'app': {
                     if (
                         hoveredItem?.packageName !== defaultBrowser ||
-                        currentLayerId === 69420
+                        currentLayerId === BROWSER_ACTIONS_RESERVED_LAYER_ID
                     ) {
                         return;
                     }
                     timeout.current = setTimeout(() => {
-                        setCurrentLayerId(69420);
+                        setCurrentLayerId(BROWSER_ACTIONS_RESERVED_LAYER_ID);
                         setCenter(
                             getSafePosition({
                                 x: hoveredItem.x,
