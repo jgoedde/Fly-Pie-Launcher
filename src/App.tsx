@@ -5,7 +5,15 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import { Dimensions, StyleSheet, Vibration, View } from 'react-native';
+import {
+    Dimensions,
+    Image,
+    StyleSheet,
+    Text,
+    useColorScheme,
+    Vibration,
+    View,
+} from 'react-native';
 import {
     GestureEvent,
     GestureHandlerRootView,
@@ -17,9 +25,11 @@ import { HandlerStateChangeEvent } from 'react-native-gesture-handler/lib/typesc
 import type { PanGestureHandlerEventPayload } from 'react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload';
 import { useInstalledApps } from './installed-apps/use-installed-apps.ts';
 import {
+    AppPieItem,
     createDefaultAppPieItem,
     createDefaultBrowserActionPieItem,
     createDefaultLayerSwitchPieItem,
+    LayerSwitchPieItem,
     PieItem,
 } from './pie/pieItem.ts';
 import {
@@ -44,6 +54,7 @@ import {
     Point,
     scaleItems,
 } from './maths.ts';
+import { Shortcut, ShortcutUtils } from './ShortcutUtils.ts';
 
 export default function App() {
     const { layers } = useLayerConfig();
@@ -57,6 +68,14 @@ export default function App() {
     const [hoveredItem, setHoveredItem] = useState<PieItem>();
     const [currentLayerId, setCurrentLayerId] = useState(1);
     const [isCustomizing, setIsCustomizing] = useState(false);
+    const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
+    const [shortcutDropdownAnchor, setShortcutDropdownAnchor] = useState<
+        Point | undefined
+    >(undefined);
+
+    useEffect(() => {
+        console.log(shortcuts, 'shortcuts');
+    }, [shortcuts]);
 
     const shouldShowPie = useMemo(() => {
         return center != null;
@@ -255,53 +274,70 @@ export default function App() {
 
     const timeout = useRef<NodeJS.Timeout>(null);
 
-    useEffect(
-        /**
-         * When a link item is hovered for 300ms, the next pie is rendered.
-         */
-        function navigateOnHold() {
-            switch (hoveredItem?.type) {
-                case 'layerSwitch': {
-                    timeout.current = setTimeout(() => {
-                        setCurrentLayerId(hoveredItem.targetLayerId);
-                        setCenter(
-                            getSafePosition({
-                                x: hoveredItem.x,
-                                y: hoveredItem.y,
-                            }),
-                        );
-                        setHoveredItem(undefined);
-                    }, 300);
-                    break;
-                }
-                case 'app': {
-                    if (
-                        hoveredItem?.packageName !== defaultBrowser ||
-                        currentLayerId === BROWSER_ACTIONS_RESERVED_LAYER_ID
-                    ) {
-                        return;
-                    }
-                    timeout.current = setTimeout(() => {
-                        setCurrentLayerId(BROWSER_ACTIONS_RESERVED_LAYER_ID);
-                        setCenter(
-                            getSafePosition({
-                                x: hoveredItem.x,
-                                y: hoveredItem.y,
-                            }),
-                        );
-                        setHoveredItem(undefined);
-                    }, 300);
-                }
-            }
+    const handleAppLongPress = useCallback(
+        (item: AppPieItem) => {
+            const isDefaultBrowser = item.packageName === defaultBrowser;
 
-            return () => {
-                if (timeout.current) {
-                    clearTimeout(timeout.current);
-                }
-            };
+            if (
+                isDefaultBrowser &&
+                currentLayerId !== BROWSER_ACTIONS_RESERVED_LAYER_ID
+            ) {
+                setCurrentLayerId(BROWSER_ACTIONS_RESERVED_LAYER_ID);
+                setCenter(
+                    getSafePosition({
+                        x: item.x,
+                        y: item.y,
+                    }),
+                );
+                setHoveredItem(undefined);
+            } else {
+                // TODO: Freeze detecting the touch gesture for the pie and start to apply it for the dropdown.
+                setShortcutDropdownAnchor({
+                    x: item.x,
+                    y: item.y,
+                });
+            }
         },
-        [currentLayerId, defaultBrowser, hoveredItem],
+        [currentLayerId, defaultBrowser],
     );
+
+    const handleLayerSwitchLongPress = (item: LayerSwitchPieItem) => {
+        setCurrentLayerId(item.targetLayerId);
+        setCenter(
+            getSafePosition({
+                x: item.x,
+                y: item.y,
+            }),
+        );
+        setHoveredItem(undefined);
+    };
+
+    /**
+     * When a link item is hovered for 300ms, the next pie is rendered.
+     */
+    useEffect(() => {
+        if (hoveredItem?.type === 'layerSwitch') {
+            timeout.current = setTimeout(
+                () => handleLayerSwitchLongPress(hoveredItem),
+                300,
+            );
+        } else if (hoveredItem?.type === 'app') {
+            ShortcutUtils.getShortcuts(hoveredItem.packageName).then(
+                setShortcuts,
+            );
+
+            timeout.current = setTimeout(
+                () => handleAppLongPress(hoveredItem),
+                300,
+            );
+        }
+
+        return () => {
+            if (timeout.current) {
+                clearTimeout(timeout.current);
+            }
+        };
+    }, [currentLayerId, defaultBrowser, handleAppLongPress, hoveredItem]);
 
     const getPieItem = useCallback(
         (item: PieItem) => {
@@ -324,6 +360,17 @@ export default function App() {
         [hoveredItem?.id],
     );
 
+    const colorScheme = useColorScheme();
+
+    // Define colors based on theme
+    const colors = {
+        background: colorScheme === 'dark' ? '#121212' : '#ffffff',
+        text: colorScheme === 'dark' ? '#ffffff' : '#000000',
+        inputBackground: colorScheme === 'dark' ? '#333333' : '#f0f0f0',
+        borderColor: colorScheme === 'dark' ? '#444444' : '#cccccc',
+        buttonColor: colorScheme === 'dark' ? '#888888' : '#444444',
+    };
+
     if (isCustomizing) {
         return (
             <View style={styles.container}>
@@ -345,6 +392,65 @@ export default function App() {
                     onHandlerStateChange={onHandlerStateChange}
                 >
                     <View style={styles.fullScreen}>
+                        {shortcutDropdownAnchor != null && (
+                            <View
+                                style={{
+                                    position: 'absolute',
+                                    top: shortcutDropdownAnchor.y,
+                                    left: shortcutDropdownAnchor.x,
+                                    borderRadius: 3,
+                                    width: 160,
+                                    backgroundColor: colors.background,
+                                    transform: [{ translateX: '-50%' }],
+                                }}
+                            >
+                                <View
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        // height: '100%',
+                                        // width: '100%',
+                                    }}
+                                >
+                                    {shortcuts.map((s, index, array) => (
+                                        <View
+                                            style={[
+                                                {
+                                                    display: 'flex',
+                                                    columnGap: 10,
+                                                    flexDirection: 'row',
+                                                    flexGrow: 1,
+                                                    alignItems: 'center',
+                                                    padding: 10,
+                                                },
+                                            ]}
+                                            key={s.id}
+                                        >
+                                            <View>
+                                                <Image
+                                                    // style={{
+                                                    //     width: '100%',
+                                                    //     height: '100%',
+                                                    // }}
+                                                    width={36}
+                                                    height={36}
+                                                    src={s.icon}
+                                                />
+                                            </View>
+                                            <View>
+                                                <Text
+                                                    style={{
+                                                        color: colors.text,
+                                                    }}
+                                                >
+                                                    {s.label}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
                         {shouldShowPie &&
                             pieItems.map(item => (
                                 <View
