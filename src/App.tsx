@@ -49,8 +49,13 @@ import {
 import './global.css';
 import { useShortcuts } from './pie/shortcuts/use-shortcuts.ts';
 import clsx from 'clsx';
+import { Shortcut, ShortcutUtils } from './ShortcutUtils.ts';
+import { clamp } from 'react-native-reanimated';
 
 const screenDimensions = Dimensions.get('screen');
+
+const MENU_WIDTH = 224;
+const MENU_ITEM_HEIGHT = 48;
 
 export default function App() {
     const { layers } = useLayerConfig();
@@ -67,6 +72,9 @@ export default function App() {
     const shortcuts = useShortcuts(
         hoveredItem?.type === 'app' ? hoveredItem.packageName : undefined,
     );
+    const [currentDropDownTouchPoint, setCurrentDropDownTouchPoint] =
+        useState<Point>();
+    const [selectedShortcut, setSelectedShortcut] = useState<Shortcut>();
 
     useEffect(() => {
         if (shortcuts.length === 0) {
@@ -160,7 +168,7 @@ export default function App() {
                 return;
             }
 
-            let newCenter = getSafePosition(point);
+            const newCenter = getSafePosition(point);
 
             setHoveredItem(undefined);
             setCenter(newCenter);
@@ -171,35 +179,27 @@ export default function App() {
     const onPanEnd = useCallback(() => {
         reset();
 
-        if (!center || !currentTouchPoint) {
+        if (!hoveredItem) {
             return;
         }
 
-        const closestItem = findClosestItem(currentTouchPoint, pieItems);
-
-        if (closestItem == null || hoveredItem?.id !== closestItem.id) {
-            return;
-        }
-
-        if (closestItem.type === 'app') {
-            RNLauncherKitHelper.launchApplication(closestItem.packageName);
+        if (selectedShortcut != null) {
+            void ShortcutUtils.launchShortcut(
+                selectedShortcut.package,
+                selectedShortcut.id,
+            );
+        } else if (hoveredItem.type === 'app') {
+            RNLauncherKitHelper.launchApplication(hoveredItem.packageName);
         } else if (
-            closestItem.type === 'browserAction' &&
+            hoveredItem.type === 'browserAction' &&
             defaultBrowser != null
         ) {
             RNLauncherKitHelper.launchApplication(defaultBrowser, {
                 action: IntentAction.VIEW,
-                data: closestItem.url,
+                data: hoveredItem.url,
             });
         }
-    }, [
-        center,
-        currentTouchPoint,
-        reset,
-        pieItems,
-        hoveredItem?.id,
-        defaultBrowser,
-    ]);
+    }, [reset, hoveredItem, selectedShortcut, defaultBrowser]);
 
     const onPanFailed = useCallback(
         (point: Point) => {
@@ -246,7 +246,13 @@ export default function App() {
                 x: event.nativeEvent.x,
                 y: event.nativeEvent.y,
             };
-            setCurrentTouchPoint(touchPoint);
+
+            if (shortcutDropdownAnchor) {
+                setCurrentDropDownTouchPoint(touchPoint);
+                return;
+            } else {
+                setCurrentTouchPoint(touchPoint);
+            }
 
             const closestItem = findClosestItem(touchPoint, pieItems);
             if (closestItem != null && center != null) {
@@ -271,7 +277,7 @@ export default function App() {
                 setHoveredItem(undefined);
             }
         },
-        [pieItems, center, hoveredItem?.id],
+        [shortcutDropdownAnchor, pieItems, center, hoveredItem?.id],
     );
 
     const timeout = useRef<NodeJS.Timeout>(null);
@@ -285,24 +291,32 @@ export default function App() {
                 currentLayerId !== BROWSER_ACTIONS_RESERVED_LAYER_ID
             ) {
                 setCurrentLayerId(BROWSER_ACTIONS_RESERVED_LAYER_ID);
-                setCenter(
-                    getSafePosition({
-                        x: item.x,
-                        y: item.y,
-                    }),
-                );
+                setCenter(getSafePosition({ x: item.x, y: item.y }));
                 setHoveredItem(undefined);
             } else if (shortcuts.length > 0) {
-                const pos = {
-                    x: item.x,
-                    y: item.y,
-                };
+                const pos = { x: item.x, y: item.y };
 
-                if (item.y >= screenDimensions.height / 2) {
-                    pos.y -= 20 + shortcuts.length * 60; // Open menu then from bottom to top
-                }
+                const isTopHalf = pos.y < screenDimensions.height / 2;
+                const menuHeight = MENU_ITEM_HEIGHT * shortcuts.length;
 
-                setShortcutDropdownAnchor(pos);
+                setShortcutDropdownAnchor({
+                    x: clamp(
+                        pos.x - MENU_WIDTH / 2,
+                        0,
+                        screenDimensions.width - MENU_WIDTH,
+                    ),
+                    y: isTopHalf
+                        ? clamp(
+                              pos.y + 30,
+                              0,
+                              screenDimensions.height - menuHeight,
+                          )
+                        : clamp(
+                              pos.y - menuHeight - 30,
+                              0,
+                              screenDimensions.height - menuHeight,
+                          ),
+                });
             }
         },
         [currentLayerId, defaultBrowser, shortcuts.length],
@@ -363,6 +377,68 @@ export default function App() {
         [hoveredItem?.id],
     );
 
+    const prevSelectedRef = useRef<Shortcut | undefined>(undefined);
+
+    useEffect(() => {
+        if (!shortcutDropdownAnchor || !currentDropDownTouchPoint) {
+            return;
+        }
+
+        // Extract dropdown box coordinates
+        const { x: boxX, y: boxY } = shortcutDropdownAnchor;
+        const boxWidth = MENU_WIDTH;
+        const boxHeight = MENU_ITEM_HEIGHT * shortcuts.length;
+        // Define extended bounds (80px for Y, 50px for X)
+        const extendedBox = {
+            left: boxX - 50,
+            right: boxX + boxWidth + 50,
+            top: boxY - 80,
+            bottom: boxY + boxHeight + 80,
+        };
+
+        // Check if thumb is inside the extended boundary
+        const isThumbInsideExtendedBox =
+            currentDropDownTouchPoint.x >= extendedBox.left &&
+            currentDropDownTouchPoint.x <= extendedBox.right &&
+            currentDropDownTouchPoint.y >= extendedBox.top &&
+            currentDropDownTouchPoint.y <= extendedBox.bottom;
+
+        let newSelected;
+
+        if (isThumbInsideExtendedBox) {
+            // Check if thumb is inside the actual menu
+            const isThumbInsideMenu =
+                currentDropDownTouchPoint.x >= boxX &&
+                currentDropDownTouchPoint.x <= boxX + boxWidth &&
+                currentDropDownTouchPoint.y >= boxY &&
+                currentDropDownTouchPoint.y <= boxY + boxHeight;
+
+            if (isThumbInsideMenu) {
+                const index = Math.floor(
+                    (currentDropDownTouchPoint.y - boxY) / MENU_ITEM_HEIGHT,
+                );
+                newSelected = shortcuts[index];
+            }
+        } else {
+            // If thumb is outside extended bounds, close the menu
+            setShortcutDropdownAnchor(undefined);
+            setCurrentDropDownTouchPoint(undefined);
+            setSelectedShortcut(undefined);
+        }
+
+        // Prevent unnecessary updates
+        if (prevSelectedRef.current !== newSelected) {
+            prevSelectedRef.current = newSelected;
+            setSelectedShortcut(newSelected);
+        }
+    }, [currentDropDownTouchPoint, shortcutDropdownAnchor, shortcuts]);
+
+    useEffect(() => {
+        if (selectedShortcut != null) {
+            Vibration.vibrate(10);
+        }
+    }, [selectedShortcut]);
+
     if (isCustomizing) {
         return (
             <View className={'flex-1'}>
@@ -391,19 +467,28 @@ export default function App() {
                         {shortcutDropdownAnchor != null && (
                             <View
                                 className={
-                                    'absolute z-10 -translate-x-1/2 rounded-lg dark:bg-gray-700 dark:text-white bg-gray-200 text-black'
+                                    'absolute z-10 whitespace-nowrap rounded-lg dark:bg-gray-700 dark:text-white bg-gray-200 text-black'
                                 }
                                 style={{
-                                    top: shortcutDropdownAnchor.y,
+                                    width: MENU_WIDTH,
+                                    height: MENU_ITEM_HEIGHT * shortcuts.length,
                                     left: shortcutDropdownAnchor.x,
+                                    top: shortcutDropdownAnchor.y,
                                 }}
                             >
-                                <View className={'flex flex-col'}>
+                                <View className={'flex flex-col h-full'}>
                                     {shortcuts.map(s => (
                                         <View
-                                            className={
-                                                'flex flex-row items-center gap-3 p-3'
-                                            }
+                                            className={clsx(
+                                                `flex flex-row items-center gap-3 p-3 ${
+                                                    selectedShortcut?.id ===
+                                                        s.id &&
+                                                    'dark:bg-gray-600 bg-gray-400'
+                                                }`,
+                                            )}
+                                            style={{
+                                                height: MENU_ITEM_HEIGHT,
+                                            }}
                                             key={s.id}
                                         >
                                             <View>
@@ -415,7 +500,7 @@ export default function App() {
                                             <View>
                                                 <Text
                                                     className={
-                                                        'dark:text-white text-black'
+                                                        'dark:text-white text-black truncate'
                                                     }
                                                 >
                                                     {s.label}
