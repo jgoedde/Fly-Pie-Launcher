@@ -2,7 +2,6 @@ import {
     Alert,
     BackHandler,
     ScrollView,
-    StyleSheet,
     Text,
     TextInput,
     View,
@@ -77,7 +76,7 @@ export default function PieCustomizer({ exit }: { exit: () => void }) {
     }, [exit, trySave]);
 
     return (
-        <View style={styles.fullScreen}>
+        <View className={'flex flex-col justify-center items-center'}>
             <ScrollView
                 style={{
                     backgroundColor: 'white',
@@ -123,12 +122,3 @@ export default function PieCustomizer({ exit }: { exit: () => void }) {
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    fullScreen: {
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-});

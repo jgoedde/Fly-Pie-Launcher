@@ -1,4 +1,4 @@
-import { Image, StyleSheet } from 'react-native';
+import { Image } from 'react-native';
 import React from 'react';
 import { BrowserActionPieItem } from './pieItem.ts';
 
@@ -7,18 +7,15 @@ export function BrowserActionItem({
 }: {
     action: BrowserActionPieItem;
 }) {
-    return <Image style={styles.icon} src={action.iconBase64} />;
+    return (
+        <Image
+            className={
+                'absolute top-1/2 left-1/2 m-auto rounded-full w-full h-full'
+            }
+            style={{
+                transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
+            }}
+            src={action.iconBase64}
+        />
+    );
 }
-
-const styles = StyleSheet.create({
-    icon: {
-        position: 'absolute',
-        top: '50%',
-        borderRadius: 100,
-        left: '50%',
-        margin: 'auto',
-        width: '100%',
-        height: '100%',
-        transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
-    },
-});

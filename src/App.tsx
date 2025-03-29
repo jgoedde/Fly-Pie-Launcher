@@ -5,15 +5,7 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import {
-    Dimensions,
-    Image,
-    StyleSheet,
-    Text,
-    useColorScheme,
-    Vibration,
-    View,
-} from 'react-native';
+import { Dimensions, Image, Text, Vibration, View } from 'react-native';
 import {
     GestureEvent,
     GestureHandlerRootView,
@@ -55,6 +47,7 @@ import {
     scaleItems,
 } from './maths.ts';
 import { Shortcut, ShortcutUtils } from './ShortcutUtils.ts';
+import './global.css';
 
 export default function App() {
     const { layers } = useLayerConfig();
@@ -360,20 +353,9 @@ export default function App() {
         [hoveredItem?.id],
     );
 
-    const colorScheme = useColorScheme();
-
-    // Define colors based on theme
-    const colors = {
-        background: colorScheme === 'dark' ? '#121212' : '#ffffff',
-        text: colorScheme === 'dark' ? '#ffffff' : '#000000',
-        inputBackground: colorScheme === 'dark' ? '#333333' : '#f0f0f0',
-        borderColor: colorScheme === 'dark' ? '#444444' : '#cccccc',
-        buttonColor: colorScheme === 'dark' ? '#888888' : '#444444',
-    };
-
     if (isCustomizing) {
         return (
-            <View style={styles.container}>
+            <View className={'flex-1'}>
                 <PieCustomizer
                     exit={() => {
                         setIsCustomizing(false);
@@ -385,63 +367,46 @@ export default function App() {
     }
 
     return (
-        <View style={styles.container}>
+        <View className={'flex-1'}>
             <GestureHandlerRootView>
                 <PanGestureHandler
                     onGestureEvent={onGestureEvent}
                     onHandlerStateChange={onHandlerStateChange}
                 >
-                    <View style={styles.fullScreen}>
+                    <View
+                        className={
+                            'flex-1 justify-center items-center relative'
+                        }
+                    >
                         {shortcutDropdownAnchor != null && (
                             <View
+                                className={
+                                    'absolute -translate-x-1/2 rounded-lg dark:bg-gray-700 dark:text-white bg-gray-200 text-black'
+                                }
                                 style={{
-                                    position: 'absolute',
                                     top: shortcutDropdownAnchor.y,
                                     left: shortcutDropdownAnchor.x,
-                                    borderRadius: 3,
-                                    width: 160,
-                                    backgroundColor: colors.background,
-                                    transform: [{ translateX: '-50%' }],
                                 }}
                             >
-                                <View
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        // height: '100%',
-                                        // width: '100%',
-                                    }}
-                                >
+                                <View className={'flex flex-col'}>
                                     {shortcuts.map((s, index, array) => (
                                         <View
-                                            style={[
-                                                {
-                                                    display: 'flex',
-                                                    columnGap: 10,
-                                                    flexDirection: 'row',
-                                                    flexGrow: 1,
-                                                    alignItems: 'center',
-                                                    padding: 10,
-                                                },
-                                            ]}
+                                            className={
+                                                'flex flex-row items-center gap-3 p-3'
+                                            }
                                             key={s.id}
                                         >
                                             <View>
                                                 <Image
-                                                    // style={{
-                                                    //     width: '100%',
-                                                    //     height: '100%',
-                                                    // }}
-                                                    width={36}
-                                                    height={36}
+                                                    className={'size-10'}
                                                     src={s.icon}
                                                 />
                                             </View>
                                             <View>
                                                 <Text
-                                                    style={{
-                                                        color: colors.text,
-                                                    }}
+                                                    className={
+                                                        'dark:text-white text-black'
+                                                    }
                                                 >
                                                     {s.label}
                                                 </Text>
@@ -454,8 +419,10 @@ export default function App() {
                         {shouldShowPie &&
                             pieItems.map(item => (
                                 <View
+                                    className={
+                                        'absolute rounded-full -translate-x-1/2 -translate-y-1/2 justify-center items-center'
+                                    }
                                     style={[
-                                        styles.app,
                                         { left: item.x, top: item.y },
                                         {
                                             height: Math.floor(
@@ -515,22 +482,3 @@ function toPieItem(
 }
 
 const PIE_ITEM_BASE_SIZE = 57;
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    fullScreen: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        position: 'relative',
-    },
-    app: {
-        position: 'absolute',
-        borderRadius: '100%',
-        transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-});
