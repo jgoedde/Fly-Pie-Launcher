@@ -46,8 +46,10 @@ import {
     Point,
     scaleItems,
 } from './maths.ts';
-import { Shortcut, ShortcutUtils } from './ShortcutUtils.ts';
 import './global.css';
+import { useShortcuts } from './pie/shortcuts/use-shortcuts.ts';
+
+const screenDimensions = Dimensions.get('screen');
 
 export default function App() {
     const { layers } = useLayerConfig();
@@ -61,14 +63,19 @@ export default function App() {
     const [hoveredItem, setHoveredItem] = useState<PieItem>();
     const [currentLayerId, setCurrentLayerId] = useState(1);
     const [isCustomizing, setIsCustomizing] = useState(false);
-    const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
+    const shortcuts = useShortcuts(
+        hoveredItem?.type === 'app' ? hoveredItem.packageName : undefined,
+    );
+
+    useEffect(() => {
+        if (hoveredItem == null) {
+            setShortcutDropdownAnchor(undefined);
+        }
+    }, [hoveredItem]);
+
     const [shortcutDropdownAnchor, setShortcutDropdownAnchor] = useState<
         Point | undefined
     >(undefined);
-
-    useEffect(() => {
-        console.log(shortcuts, 'shortcuts');
-    }, [shortcuts]);
 
     const shouldShowPie = useMemo(() => {
         return center != null;
@@ -86,6 +93,7 @@ export default function App() {
         setCurrentLayerId(layers.find(l => l.isBaseLayer)?.id ?? 1);
         setCurrentTouchPoint(undefined);
         setCenter(undefined);
+        setShortcutDropdownAnchor(undefined);
     }, [layers]);
 
     const pieItems = useMemo(() => {
@@ -141,7 +149,7 @@ export default function App() {
 
     const isCloseToBorder = useCallback(
         (point: Point) =>
-            point.y <= 100 || point.y >= Dimensions.get('screen').height - 100,
+            point.y <= 100 || point.y >= screenDimensions.height - 100,
         [],
     );
 
@@ -284,14 +292,19 @@ export default function App() {
                 );
                 setHoveredItem(undefined);
             } else {
-                // TODO: Freeze detecting the touch gesture for the pie and start to apply it for the dropdown.
-                setShortcutDropdownAnchor({
+                const pos = {
                     x: item.x,
                     y: item.y,
-                });
+                };
+
+                if (item.y >= screenDimensions.height / 2) {
+                    pos.y -= shortcuts.length * 60; // Open menu then from bottom to top
+                }
+
+                setShortcutDropdownAnchor(pos);
             }
         },
-        [currentLayerId, defaultBrowser],
+        [currentLayerId, defaultBrowser, shortcuts.length],
     );
 
     const handleLayerSwitchLongPress = (item: LayerSwitchPieItem) => {
@@ -315,10 +328,6 @@ export default function App() {
                 300,
             );
         } else if (hoveredItem?.type === 'app') {
-            ShortcutUtils.getShortcuts(hoveredItem.packageName).then(
-                setShortcuts,
-            );
-
             timeout.current = setTimeout(
                 () => handleAppLongPress(hoveredItem),
                 300,
@@ -389,7 +398,7 @@ export default function App() {
                                 }}
                             >
                                 <View className={'flex flex-col'}>
-                                    {shortcuts.map((s, index, array) => (
+                                    {shortcuts.map(s => (
                                         <View
                                             className={
                                                 'flex flex-row items-center gap-3 p-3'
