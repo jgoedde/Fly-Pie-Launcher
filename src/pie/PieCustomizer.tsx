@@ -116,7 +116,7 @@ export default function PieCustomizer({ exit }: { exit: () => void }) {
                 >
                     Installed apps:
                 </Text>
-                <Text>
+                <Text selectable>
                     {apps.map(a => `${a.label} - ${a.packageName}`).join('\n')}
                 </Text>
             </ScrollView>
