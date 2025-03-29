@@ -1,20 +1,15 @@
 import { Image, StyleSheet } from 'react-native';
 import React from 'react';
-import { BrowserActionPieItem } from './pieUtils.ts';
+import { AppPieItem } from './pieItem.ts';
 
-export function BrowserActionItem({
-    action,
-}: {
-    action: BrowserActionPieItem;
-}) {
-    return <Image style={styles.icon} src={action.iconBase64} />;
+export function AppItem({ pieItem }: { pieItem: AppPieItem }) {
+    return <Image style={styles.icon} src={pieItem.iconBase64} />;
 }
 
 const styles = StyleSheet.create({
     icon: {
         position: 'absolute',
         top: '50%',
-        borderRadius: 100,
         left: '50%',
         margin: 'auto',
         width: '100%',

@@ -1,5 +1,5 @@
 import { useMMKVStorage } from 'react-native-mmkv-storage';
-import { storage } from './storage.ts';
+import { storage } from '../../storage.ts';
 import { z } from 'zod';
 
 export const BROWSER_ACTIONS_RESERVED_LAYER_ID = 9191;
@@ -31,11 +31,7 @@ export const LayerSchema = z.object({
 
 export type Layer = z.infer<typeof LayerSchema>;
 
-export const LayersSchema = z.array(LayerSchema).min(1);
-
-export type Layers = z.infer<typeof LayersSchema>;
-
-const DEFAULT_LAYERS: Layers = [
+const DEFAULT_LAYERS: Layer[] = [
     {
         id: 1,
         name: 'Home',
@@ -64,7 +60,7 @@ const DEFAULT_LAYERS: Layers = [
 ];
 
 export function useLayerConfig() {
-    const [layers, setLayers] = useMMKVStorage<Layers>(
+    const [layers, setLayers] = useMMKVStorage<Layer[]>(
         'layers',
         storage,
         DEFAULT_LAYERS,

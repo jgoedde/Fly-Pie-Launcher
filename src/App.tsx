@@ -15,34 +15,35 @@ import {
 import { IntentAction, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import { HandlerStateChangeEvent } from 'react-native-gesture-handler/lib/typescript/handlers/gestureHandlerCommon';
 import type { PanGestureHandlerEventPayload } from 'react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload';
-import { useInstalledApps } from './use-installed-apps.ts';
+import { useInstalledApps } from './installed-apps/use-installed-apps.ts';
 import {
-    calculateItemPositions,
-    CIRCLE_RADIUS,
     createDefaultAppPieItem,
     createDefaultBrowserActionPieItem,
     createDefaultLayerSwitchPieItem,
-    findClosestItem,
-    getDistance,
-    getSafePosition,
-    HOVER_THRESHOLD,
     PieItem,
-    Point,
-    scaleItems,
-} from './pieUtils.ts';
+} from './pie/pieItem.ts';
 import {
     BROWSER_ACTIONS_RESERVED_LAYER_ID,
     Layer,
     LayerItem,
-    Layers,
     useLayerConfig,
-} from './use-layer-config.ts';
+} from './pie/layers/use-layer-config.ts';
 import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
-import PieCustomizer from './PieCustomizer.tsx';
-import { LayerSwitchItem } from './LayerSwitchItem.tsx';
-import { AppItem } from './AppItem.tsx';
-import { BrowserActionItem } from './BrowserActionItem.tsx';
-import { useBrowserActions } from './use-browser-actions.ts';
+import PieCustomizer from './pie/PieCustomizer.tsx';
+import { LayerSwitchItem } from './pie/LayerSwitchItem.tsx';
+import { AppItem } from './pie/AppItem.tsx';
+import { BrowserActionItem } from './pie/BrowserActionItem.tsx';
+import { useBrowserActions } from './pie/browser-actions/use-browser-actions.ts';
+import {
+    calculateItemPositions,
+    CIRCLE_RADIUS,
+    findClosestItem,
+    getDistance,
+    getSafePosition,
+    HOVER_THRESHOLD,
+    Point,
+    scaleItems,
+} from './maths.ts';
 
 export default function App() {
     const { layers } = useLayerConfig();
@@ -383,7 +384,7 @@ export default function App() {
  */
 function toPieItem(
     item: LayerItem,
-    layers: Layers,
+    layers: Layer[],
     apps: AppDetail[],
 ): PieItem | undefined {
     if (typeof item === 'number') {

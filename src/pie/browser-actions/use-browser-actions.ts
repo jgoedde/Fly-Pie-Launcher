@@ -1,17 +1,6 @@
 import { useMMKVStorage } from 'react-native-mmkv-storage';
-import { storage } from './storage.ts';
-import { z } from 'zod';
-
-const BrowserActionSchema = z.object({
-    image: z.string(),
-    url: z.string().url(),
-});
-
-type BrowserAction = z.infer<typeof BrowserActionSchema>;
-
-const BrowserActionsSchema = z.array(BrowserActionSchema);
-
-export type BrowserActions = z.infer<typeof BrowserActionsSchema>;
+import { storage } from '../../storage.ts';
+import { BrowserAction } from './browser-actions.ts';
 
 const DEFAULT_BROWSER_ACTIONS: BrowserAction[] = [
     {
@@ -33,7 +22,7 @@ const DEFAULT_BROWSER_ACTIONS: BrowserAction[] = [
 ];
 
 export function useBrowserActions() {
-    const [actions, setActions] = useMMKVStorage<BrowserActions>(
+    const [actions, setActions] = useMMKVStorage<BrowserAction[]>(
         'browser-actions',
         storage,
         DEFAULT_BROWSER_ACTIONS,

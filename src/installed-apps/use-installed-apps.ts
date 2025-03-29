@@ -2,13 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
 import { InstalledApps } from 'react-native-launcher-kit';
 import { useMMKVStorage } from 'react-native-mmkv-storage';
-import { storage } from './storage.ts';
-import { z } from 'zod';
-import { BrowserUtils } from './BrowserUtils.ts';
-
-export const PackageNameSchema = z.string().nonempty();
-
-export type PackageName = z.infer<typeof PackageNameSchema>;
+import { storage } from '../storage.ts';
+import { BrowserUtils } from '../BrowserUtils.ts';
+import { PackageName } from './package-name.ts';
 
 export function useInstalledApps(): {
     apps: AppDetail[];

@@ -1,5 +1,6 @@
 import { NativeModules } from 'react-native';
-import { PackageName } from './use-installed-apps.ts';
+
+import { PackageName } from './installed-apps/package-name.ts';
 
 export type Shortcut = {
     id: string;

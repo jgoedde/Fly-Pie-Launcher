@@ -1,7 +1,7 @@
-import { convertToRGBA } from './colorUtils.ts';
+import { convertToRGBA } from '../colorUtils.ts';
 import { StyleSheet, Text } from 'react-native';
 import React from 'react';
-import { LayerSwitchPieItem } from './pieUtils.ts';
+import { LayerSwitchPieItem } from './pieItem.ts';
 
 export function LayerSwitchItem({
     isHovered,
