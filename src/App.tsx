@@ -483,7 +483,7 @@ export default function App() {
                                                 `flex flex-row items-center gap-3 p-3 ${
                                                     selectedShortcut?.id ===
                                                         s.id &&
-                                                    'dark:bg-gray-600 bg-gray-400'
+                                                    'dark:bg-gray-600 bg-gray-300'
                                                 }`,
                                             )}
                                             style={{
