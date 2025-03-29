@@ -1,17 +1,15 @@
 import { useMMKVStorage } from 'react-native-mmkv-storage';
 import { storage } from './storage.ts';
 import { z } from 'zod';
+import { PackageNameSchema } from './use-installed-apps.ts';
 
 export const BROWSER_ACTIONS_RESERVED_LAYER_ID = 9191;
 
-export const LayerPieItemPackageSchema = z.string().nonempty();
-
 export const LayerPieItemLinkSchema = z.number().min(1);
 
-const LayerItemSchema = z.union([
-    LayerPieItemPackageSchema,
-    LayerPieItemLinkSchema,
-]);
+export type LayerLink = z.infer<typeof LayerPieItemLinkSchema>;
+
+const LayerItemSchema = z.union([PackageNameSchema, LayerPieItemLinkSchema]);
 
 export type LayerItem = z.infer<typeof LayerItemSchema>;
 
@@ -35,7 +33,7 @@ export const LayersSchema = z.array(LayerSchema).min(1);
 
 export type Layers = z.infer<typeof LayersSchema>;
 
-const DEFAULT_LAYERS: Layers = [
+export const DEFAULT_LAYERS: Layers = [
     {
         id: 1,
         name: 'Home',
