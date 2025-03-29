@@ -5,29 +5,22 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import {
-    Dimensions,
-    Image,
-    StyleSheet,
-    Text,
-    Vibration,
-    View,
-} from 'react-native';
+import { Dimensions, StyleSheet, Vibration, View } from 'react-native';
 import {
     GestureEvent,
     GestureHandlerRootView,
     PanGestureHandler,
     State,
 } from 'react-native-gesture-handler';
-import { RNLauncherKitHelper } from 'react-native-launcher-kit';
+import { IntentAction, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import { HandlerStateChangeEvent } from 'react-native-gesture-handler/lib/typescript/handlers/gestureHandlerCommon';
 import type { PanGestureHandlerEventPayload } from 'react-native-gesture-handler/lib/typescript/handlers/GestureHandlerEventPayload';
 import { useInstalledApps } from './use-installed-apps.ts';
 import {
-    AppPieItem,
     calculateItemPositions,
     CIRCLE_RADIUS,
     createDefaultAppPieItem,
+    createDefaultBrowserActionPieItem,
     createDefaultLayerSwitchPieItem,
     findClosestItem,
     getDistance,
@@ -43,13 +36,17 @@ import {
     Layers,
     useLayerConfig,
 } from './use-layer-config.ts';
-import { convertToRGBA } from './colorUtils.ts';
 import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
 import PieCustomizer from './PieCustomizer.tsx';
+import { LayerSwitchItem } from './LayerSwitchItem.tsx';
+import { AppItem } from './AppItem.tsx';
+import { BrowserActionItem } from './BrowserActionItem.tsx';
+import { useBrowserActions } from './use-browser-actions.ts';
 
 export default function App() {
     const { layers } = useLayerConfig();
     const { apps, defaultBrowser } = useInstalledApps();
+    const { actions: browserActions } = useBrowserActions();
 
     const [center, setCenter] = useState<Point | undefined>();
     const [currentTouchPoint, setCurrentTouchPoint] = useState<
@@ -67,12 +64,15 @@ export default function App() {
         return layers.find(layer => layer.id === currentLayerId);
     }, [currentLayerId, layers]);
 
+    /**
+     * Resets the state. Switches back to the home layer and sets all the gesture-related states back to initial.
+     */
     const reset = useCallback(() => {
         setHoveredItem(undefined);
-        setCurrentLayerId(1);
+        setCurrentLayerId(layers.find(l => l.isBaseLayer)?.id ?? 1);
         setCurrentTouchPoint(undefined);
         setCenter(undefined);
-    }, []);
+    }, [layers]);
 
     const pieItems = useMemo(() => {
         const tp = currentTouchPoint ?? center;
@@ -81,27 +81,46 @@ export default function App() {
             return [];
         }
 
-        const items = ((currentLayer?.items ?? []) as LayerItem[])
-            // convert items from the layer configuration into internal pie items.
-            // Either an app link or a link to another pie layer.
-            .map(i => toPieItem(i, layers, apps))
-            // filter out apps that could not have been resolved
-            .filter((i: PieItem | undefined): i is PieItem => !!i);
+        const items: PieItem[] = [];
+
+        if (currentLayerId === 69420 && defaultBrowser != null) {
+            items.push(
+                ...browserActions.map(action =>
+                    createDefaultBrowserActionPieItem(
+                        `pie-browser-action-${action.url}`,
+                        '#ffffff',
+                        action.url,
+                        action.image,
+                    ),
+                ),
+            );
+
+            const browserApp = toPieItem(defaultBrowser, layers, apps);
+            if (browserApp) {
+                items.push(browserApp);
+            }
+        } else {
+            items.push(
+                ...((currentLayer?.items ?? []) as LayerItem[])
+                    // convert items from the layer configuration into internal pie items.
+                    // Either an app link or a link to another pie layer.
+                    .map(i => toPieItem(i, layers, apps))
+                    // filter out apps that could not have been resolved
+                    .filter((i: PieItem | undefined): i is PieItem => !!i),
+            );
+        }
 
         return scaleItems(tp, center, calculateItemPositions(center, items));
-    }, [apps, center, currentLayer?.items, currentTouchPoint, layers]);
-
-    const onAppSelect = useCallback(
-        (item: AppPieItem) => {
-            if (item.packageName == null) {
-                throw new Error('no package name');
-            }
-
-            reset();
-            RNLauncherKitHelper.launchApplication(item.packageName);
-        },
-        [reset],
-    );
+    }, [
+        apps,
+        browserActions,
+        center,
+        currentLayer?.items,
+        currentLayerId,
+        currentTouchPoint,
+        defaultBrowser,
+        layers,
+    ]);
 
     const isCloseToBorder = useCallback(
         (point: Point) =>
@@ -124,26 +143,36 @@ export default function App() {
     );
 
     const onPanEnd = useCallback(() => {
-        if (center && currentTouchPoint) {
-            const closestItem = findClosestItem(currentTouchPoint, pieItems);
+        reset();
 
-            if (
-                closestItem != null &&
-                hoveredItem?.id === closestItem.id &&
-                closestItem.type === 'app'
-            ) {
-                onAppSelect(closestItem);
-            }
+        if (!center || !currentTouchPoint) {
+            return;
         }
 
-        reset();
+        const closestItem = findClosestItem(currentTouchPoint, pieItems);
+
+        if (closestItem == null || hoveredItem?.id !== closestItem.id) {
+            return;
+        }
+
+        if (closestItem.type === 'app') {
+            RNLauncherKitHelper.launchApplication(closestItem.packageName);
+        } else if (
+            closestItem.type === 'browserAction' &&
+            defaultBrowser != null
+        ) {
+            RNLauncherKitHelper.launchApplication(defaultBrowser, {
+                action: IntentAction.VIEW,
+                data: closestItem.url,
+            });
+        }
     }, [
         center,
         currentTouchPoint,
         reset,
         pieItems,
         hoveredItem?.id,
-        onAppSelect,
+        defaultBrowser,
     ]);
 
     const onPanFailed = useCallback(
@@ -151,10 +180,10 @@ export default function App() {
             if (isCloseToBorder(point)) {
                 setIsCustomizing(true);
             } else {
-                onPanEnd();
+                reset();
             }
         },
-        [isCloseToBorder, onPanEnd],
+        [isCloseToBorder, reset],
     );
 
     const onHandlerStateChange = useCallback(
@@ -226,9 +255,9 @@ export default function App() {
          * When a link item is hovered for 300ms, the next pie is rendered.
          */
         function navigateOnHold() {
-            if (hoveredItem?.type === 'layerSwitch') {
-                timeout.current = setTimeout(() => {
-                    if (hoveredItem?.targetLayerId != null) {
+            switch (hoveredItem?.type) {
+                case 'layerSwitch': {
+                    timeout.current = setTimeout(() => {
                         setCurrentLayerId(hoveredItem.targetLayerId);
                         setCenter(
                             getSafePosition({
@@ -237,73 +266,57 @@ export default function App() {
                             }),
                         );
                         setHoveredItem(undefined);
+                    }, 300);
+                    break;
+                }
+                case 'app': {
+                    if (
+                        hoveredItem?.packageName !== defaultBrowser ||
+                        currentLayerId === 69420
+                    ) {
+                        return;
                     }
-                }, 300);
-
-                return () => {
-                    if (timeout.current) {
-                        clearTimeout(timeout.current);
-                    }
-                };
+                    timeout.current = setTimeout(() => {
+                        setCurrentLayerId(69420);
+                        setCenter(
+                            getSafePosition({
+                                x: hoveredItem.x,
+                                y: hoveredItem.y,
+                            }),
+                        );
+                        setHoveredItem(undefined);
+                    }, 300);
+                }
             }
+
+            return () => {
+                if (timeout.current) {
+                    clearTimeout(timeout.current);
+                }
+            };
         },
-        [hoveredItem],
+        [currentLayerId, defaultBrowser, hoveredItem],
     );
 
     const getPieItem = useCallback(
         (item: PieItem) => {
-            if (item.type === 'app') {
-                return <Image style={styles.icon} src={item.iconBase64} />;
+            switch (item.type) {
+                case 'app':
+                    return <AppItem pieItem={item} />;
+                case 'layerSwitch':
+                    return (
+                        <LayerSwitchItem
+                            isHovered={hoveredItem?.id === item.id}
+                            link={item}
+                        />
+                    );
+                case 'browserAction':
+                    return <BrowserActionItem action={item} />;
+                default:
+                    return null;
             }
-
-            if (item.type === 'layerSwitch') {
-                return (
-                    <Text
-                        style={[
-                            styles.layerItem,
-                            {
-                                fontSize: Math.floor(44 * item.scaleFactor),
-                            },
-                            {
-                                backgroundColor:
-                                    'rgba' +
-                                    convertToRGBA(
-                                        item.accent,
-                                        hoveredItem?.id === item.id
-                                            ? '1.0'
-                                            : '0.5',
-                                    ),
-                            },
-                        ]}
-                    >
-                        {item.targetLayerId}
-                    </Text>
-                );
-            }
-
-            return null;
         },
         [hoveredItem?.id],
-    );
-
-    const pie = useMemo(
-        () =>
-            pieItems.map(item => (
-                <View
-                    style={[
-                        styles.app,
-                        { left: item.x, top: item.y },
-                        {
-                            height: Math.floor(PIE_ITEM_BASE_SIZE * item.scale),
-                            width: Math.floor(PIE_ITEM_BASE_SIZE * item.scale),
-                        },
-                    ]}
-                    key={item.id}
-                >
-                    {getPieItem(item)}
-                </View>
-            )),
-        [getPieItem, pieItems],
     );
 
     if (isCustomizing) {
@@ -327,7 +340,28 @@ export default function App() {
                     onHandlerStateChange={onHandlerStateChange}
                 >
                     <View style={styles.fullScreen}>
-                        {shouldShowPie && pie}
+                        {shouldShowPie &&
+                            pieItems.map(item => (
+                                <View
+                                    style={[
+                                        styles.app,
+                                        { left: item.x, top: item.y },
+                                        {
+                                            height: Math.floor(
+                                                PIE_ITEM_BASE_SIZE *
+                                                    item.scaleFactor,
+                                            ),
+                                            width: Math.floor(
+                                                PIE_ITEM_BASE_SIZE *
+                                                    item.scaleFactor,
+                                            ),
+                                        },
+                                    ]}
+                                    key={item.id}
+                                >
+                                    {getPieItem(item)}
+                                </View>
+                            ))}
                     </View>
                 </PanGestureHandler>
             </GestureHandlerRootView>
@@ -387,25 +421,5 @@ const styles = StyleSheet.create({
         transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    icon: {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        margin: 'auto',
-        width: '100%',
-        height: '100%',
-        transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
-    },
-    layerItem: {
-        fontWeight: 700,
-        marginLeft: 'auto',
-        marginRight: 'auto',
-        width: '100%',
-        height: '100%',
-        textAlign: 'center',
-        textAlignVertical: 'center',
-        color: 'white',
-        borderRadius: 100,
     },
 });
