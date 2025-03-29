@@ -48,6 +48,7 @@ import {
 } from './maths.ts';
 import './global.css';
 import { useShortcuts } from './pie/shortcuts/use-shortcuts.ts';
+import clsx from 'clsx';
 
 const screenDimensions = Dimensions.get('screen');
 
@@ -68,10 +69,10 @@ export default function App() {
     );
 
     useEffect(() => {
-        if (hoveredItem == null) {
+        if (shortcuts.length === 0) {
             setShortcutDropdownAnchor(undefined);
         }
-    }, [hoveredItem]);
+    }, [shortcuts]);
 
     const [shortcutDropdownAnchor, setShortcutDropdownAnchor] = useState<
         Point | undefined
@@ -291,14 +292,14 @@ export default function App() {
                     }),
                 );
                 setHoveredItem(undefined);
-            } else {
+            } else if (shortcuts.length > 0) {
                 const pos = {
                     x: item.x,
                     y: item.y,
                 };
 
                 if (item.y >= screenDimensions.height / 2) {
-                    pos.y -= shortcuts.length * 60; // Open menu then from bottom to top
+                    pos.y -= 20 + shortcuts.length * 60; // Open menu then from bottom to top
                 }
 
                 setShortcutDropdownAnchor(pos);
@@ -390,7 +391,7 @@ export default function App() {
                         {shortcutDropdownAnchor != null && (
                             <View
                                 className={
-                                    'absolute -translate-x-1/2 rounded-lg dark:bg-gray-700 dark:text-white bg-gray-200 text-black'
+                                    'absolute z-10 -translate-x-1/2 rounded-lg dark:bg-gray-700 dark:text-white bg-gray-200 text-black'
                                 }
                                 style={{
                                     top: shortcutDropdownAnchor.y,
@@ -428,9 +429,12 @@ export default function App() {
                         {shouldShowPie &&
                             pieItems.map(item => (
                                 <View
-                                    className={
-                                        'absolute rounded-full -translate-x-1/2 -translate-y-1/2 justify-center items-center'
-                                    }
+                                    className={clsx(
+                                        'absolute rounded-full -translate-x-1/2 -translate-y-1/2 justify-center items-center',
+                                        shortcutDropdownAnchor != null &&
+                                            item.id !== hoveredItem?.id &&
+                                            'opacity-20',
+                                    )}
                                     style={[
                                         { left: item.x, top: item.y },
                                         {
