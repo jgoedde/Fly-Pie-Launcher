@@ -54,7 +54,7 @@ import { clamp } from 'react-native-reanimated';
 
 const screenDimensions = Dimensions.get('screen');
 
-const MENU_WIDTH = 224;
+const MENU_WIDTH = 188;
 const MENU_ITEM_HEIGHT = 48;
 
 export default function App() {
