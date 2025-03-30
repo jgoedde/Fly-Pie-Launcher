@@ -104,7 +104,9 @@ export default function App() {
         setCurrentLayerId(layers.find(l => l.isBaseLayer)?.id ?? 1);
         setCurrentTouchPoint(undefined);
         setCenter(undefined);
+        setSelectedShortcut(undefined)
         setShortcutDropdownAnchor(undefined);
+        setCurrentDropDownTouchPoint(undefined);
     }, [layers]);
 
     const pieItems = useMemo(() => {
