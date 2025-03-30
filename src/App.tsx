@@ -282,44 +282,36 @@ export default function App() {
 
     const timeout = useRef<NodeJS.Timeout>(null);
 
-    const handleAppLongPress = useCallback(
+    const handleShortcutsLongPress = useCallback(
         (item: AppPieItem) => {
-            const isDefaultBrowser = item.packageName === defaultBrowser;
-
-            if (
-                isDefaultBrowser &&
-                currentLayerId !== BROWSER_ACTIONS_RESERVED_LAYER_ID
-            ) {
-                setCurrentLayerId(BROWSER_ACTIONS_RESERVED_LAYER_ID);
-                setCenter(getSafePosition({ x: item.x, y: item.y }));
-                setHoveredItem(undefined);
-            } else if (shortcuts.length > 0) {
-                const pos = { x: item.x, y: item.y };
-
-                const isTopHalf = pos.y < screenDimensions.height / 2;
-                const menuHeight = MENU_ITEM_HEIGHT * shortcuts.length;
-
-                setShortcutDropdownAnchor({
-                    x: clamp(
-                        pos.x - MENU_WIDTH / 2,
-                        0,
-                        screenDimensions.width - MENU_WIDTH,
-                    ),
-                    y: isTopHalf
-                        ? clamp(
-                              pos.y + 30,
-                              0,
-                              screenDimensions.height - menuHeight,
-                          )
-                        : clamp(
-                              pos.y - menuHeight - 30,
-                              0,
-                              screenDimensions.height - menuHeight,
-                          ),
-                });
+            if (shortcuts.length <= 0) {
+                return;
             }
+
+            Vibration.vibrate(10);
+
+            const isTopHalf = item.y < screenDimensions.height / 2;
+            const menuHeight = MENU_ITEM_HEIGHT * shortcuts.length;
+            setShortcutDropdownAnchor({
+                x: clamp(
+                    item.x - MENU_WIDTH / 2,
+                    0,
+                    screenDimensions.width - MENU_WIDTH,
+                ),
+                y: isTopHalf
+                    ? clamp(
+                          item.y + 30,
+                          0,
+                          screenDimensions.height - menuHeight,
+                      )
+                    : clamp(
+                          item.y - menuHeight - 30,
+                          0,
+                          screenDimensions.height - menuHeight,
+                      ),
+            });
         },
-        [currentLayerId, defaultBrowser, shortcuts.length],
+        [shortcuts.length],
     );
 
     const handleLayerSwitchLongPress = (item: LayerSwitchPieItem) => {
@@ -342,11 +334,26 @@ export default function App() {
                 () => handleLayerSwitchLongPress(hoveredItem),
                 300,
             );
-        } else if (hoveredItem?.type === 'app') {
+        } else if (
+            hoveredItem?.type === 'app' &&
+            hoveredItem.packageName !== defaultBrowser
+        ) {
             timeout.current = setTimeout(
-                () => handleAppLongPress(hoveredItem),
-                300,
+                () => handleShortcutsLongPress(hoveredItem),
+                666,
             );
+        } else if (
+            hoveredItem?.type === 'app' &&
+            hoveredItem.packageName === defaultBrowser &&
+            currentLayerId !== BROWSER_ACTIONS_RESERVED_LAYER_ID
+        ) {
+            timeout.current = setTimeout(() => {
+                setCurrentLayerId(BROWSER_ACTIONS_RESERVED_LAYER_ID);
+                setCenter(
+                    getSafePosition({ x: hoveredItem.x, y: hoveredItem.y }),
+                );
+                setHoveredItem(undefined);
+            }, 300);
         }
 
         return () => {
@@ -354,7 +361,7 @@ export default function App() {
                 clearTimeout(timeout.current);
             }
         };
-    }, [currentLayerId, defaultBrowser, handleAppLongPress, hoveredItem]);
+    }, [currentLayerId, defaultBrowser, handleShortcutsLongPress, hoveredItem]);
 
     const getPieItem = useCallback(
         (item: PieItem) => {
