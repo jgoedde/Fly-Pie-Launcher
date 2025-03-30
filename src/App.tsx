@@ -5,7 +5,7 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import { Dimensions, Image, Text, Vibration, View } from 'react-native';
+import { Dimensions, Vibration, View } from 'react-native';
 import {
     GestureEvent,
     GestureHandlerRootView,
@@ -51,11 +51,13 @@ import { useShortcuts } from './pie/shortcuts/use-shortcuts.ts';
 import clsx from 'clsx';
 import { Shortcut, ShortcutUtils } from './ShortcutUtils.ts';
 import { clamp } from 'react-native-reanimated';
+import {
+    MENU_ITEM_HEIGHT,
+    MENU_WIDTH,
+    ShortcutDropdownMenu,
+} from './pie/ShortcutDropdownMenu.tsx';
 
 const screenDimensions = Dimensions.get('screen');
-
-const MENU_WIDTH = 188;
-const MENU_ITEM_HEIGHT = 48;
 
 export default function App() {
     const { layers } = useLayerConfig();
@@ -440,12 +442,6 @@ export default function App() {
         }
     }, [currentDropDownTouchPoint, shortcutDropdownAnchor, shortcuts]);
 
-    useEffect(() => {
-        if (selectedShortcut != null) {
-            Vibration.vibrate(10);
-        }
-    }, [selectedShortcut]);
-
     if (isCustomizing) {
         return (
             <View className={'flex-1'}>
@@ -472,51 +468,11 @@ export default function App() {
                         }
                     >
                         {shortcutDropdownAnchor != null && (
-                            <View
-                                className={
-                                    'absolute z-10 whitespace-nowrap rounded-lg dark:bg-gray-700 dark:text-white bg-gray-200 text-black'
-                                }
-                                style={{
-                                    width: MENU_WIDTH,
-                                    height: MENU_ITEM_HEIGHT * shortcuts.length,
-                                    left: shortcutDropdownAnchor.x,
-                                    top: shortcutDropdownAnchor.y,
-                                }}
-                            >
-                                <View className={'flex flex-col h-full'}>
-                                    {shortcuts.map(s => (
-                                        <View
-                                            className={clsx(
-                                                `flex flex-row items-center gap-3 p-3 ${
-                                                    selectedShortcut?.id ===
-                                                        s.id &&
-                                                    'dark:bg-gray-600 bg-gray-300'
-                                                }`,
-                                            )}
-                                            style={{
-                                                height: MENU_ITEM_HEIGHT,
-                                            }}
-                                            key={s.id}
-                                        >
-                                            <View>
-                                                <Image
-                                                    className={'size-10'}
-                                                    src={s.icon}
-                                                />
-                                            </View>
-                                            <View>
-                                                <Text
-                                                    className={
-                                                        'dark:text-white text-black truncate'
-                                                    }
-                                                >
-                                                    {s.label}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    ))}
-                                </View>
-                            </View>
+                            <ShortcutDropdownMenu
+                                anchor={shortcutDropdownAnchor}
+                                shortcuts={shortcuts}
+                                selectedShortcut={selectedShortcut}
+                            />
                         )}
                         {shouldShowPie &&
                             pieItems.map(item => (
