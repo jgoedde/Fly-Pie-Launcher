@@ -14,7 +14,7 @@ interface BasePieItem extends Point {
      */
     scaleFactor: number;
 
-    type: 'app' | 'layerSwitch' | 'browserAction';
+    type: 'app' | 'layerSwitch';
 }
 
 export type AppPieItem = BasePieItem & {
@@ -61,29 +61,4 @@ export function createDefaultLayerSwitchPieItem(
     };
 }
 
-export type BrowserActionPieItem = BasePieItem & {
-    iconBase64: string;
-    accent: string;
-    url: string;
-    type: 'browserAction';
-};
-
-export function createDefaultBrowserActionPieItem(
-    id: string,
-    accent: string,
-    url: string,
-    iconBase64: string,
-): BrowserActionPieItem {
-    return {
-        scaleFactor: 1,
-        y: 0,
-        x: 0,
-        type: 'browserAction',
-        id,
-        url,
-        accent,
-        iconBase64,
-    };
-}
-
-export type PieItem = AppPieItem | LayerSwitchPieItem | BrowserActionPieItem;
+export type PieItem = AppPieItem | LayerSwitchPieItem;

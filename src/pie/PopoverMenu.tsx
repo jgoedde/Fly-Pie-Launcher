@@ -2,25 +2,25 @@ import { Image, Text, Vibration, View } from 'react-native';
 import clsx from 'clsx';
 import React, { useEffect } from 'react';
 import { Point } from '../maths.ts';
-import { Shortcut } from '../ShortcutUtils.ts';
+import { PopoverItem } from './popover-item.ts';
 
 export const MENU_WIDTH = 188;
 export const MENU_ITEM_HEIGHT = 48;
 
-export function ShortcutDropdownMenu({
+export function PopoverMenu({
     anchor,
-    shortcuts,
-    selectedShortcut,
+    items,
+    selectedPopoverItem,
 }: {
     anchor: Point;
-    shortcuts: Shortcut[];
-    selectedShortcut?: Shortcut;
+    items: PopoverItem[];
+    selectedPopoverItem?: PopoverItem;
 }) {
     useEffect(() => {
-        if (selectedShortcut) {
+        if (selectedPopoverItem) {
             Vibration.vibrate(10);
         }
-    }, [selectedShortcut]);
+    }, [selectedPopoverItem]);
 
     return (
         <View
@@ -29,17 +29,17 @@ export function ShortcutDropdownMenu({
             }
             style={{
                 width: MENU_WIDTH,
-                height: MENU_ITEM_HEIGHT * shortcuts.length,
+                height: MENU_ITEM_HEIGHT * items.length,
                 left: anchor.x,
                 top: anchor.y,
             }}
         >
             <View className={'flex flex-col h-full'}>
-                {shortcuts.map(s => (
+                {items.map(s => (
                     <View
                         className={clsx(
                             `flex flex-row items-center gap-3 p-3 ${
-                                selectedShortcut?.id === s.id &&
+                                selectedPopoverItem?.id === s.id &&
                                 'dark:bg-gray-600 bg-gray-300'
                             }`,
                         )}

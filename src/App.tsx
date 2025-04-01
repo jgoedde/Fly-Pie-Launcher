@@ -19,13 +19,11 @@ import { useInstalledApps } from './installed-apps/use-installed-apps.ts';
 import {
     AppPieItem,
     createDefaultAppPieItem,
-    createDefaultBrowserActionPieItem,
     createDefaultLayerSwitchPieItem,
     LayerSwitchPieItem,
     PieItem,
 } from './pie/pieItem.ts';
 import {
-    BROWSER_ACTIONS_RESERVED_LAYER_ID,
     Layer,
     LayerItem,
     useLayerConfig,
@@ -34,7 +32,6 @@ import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/Insta
 import PieCustomizer from './pie/PieCustomizer.tsx';
 import { LayerSwitchItem } from './pie/LayerSwitchItem.tsx';
 import { AppItem } from './pie/AppItem.tsx';
-import { BrowserActionItem } from './pie/BrowserActionItem.tsx';
 import { useBrowserActions } from './pie/browser-actions/use-browser-actions.ts';
 import {
     calculateItemPositions,
@@ -49,13 +46,18 @@ import {
 import './global.css';
 import { useShortcuts } from './pie/shortcuts/use-shortcuts.ts';
 import clsx from 'clsx';
-import { Shortcut, ShortcutUtils } from './ShortcutUtils.ts';
+import { ShortcutUtils } from './ShortcutUtils.ts';
 import { clamp } from 'react-native-reanimated';
 import {
     MENU_ITEM_HEIGHT,
     MENU_WIDTH,
-    ShortcutDropdownMenu,
-} from './pie/ShortcutDropdownMenu.tsx';
+    PopoverMenu,
+} from './pie/PopoverMenu.tsx';
+import {
+    AppPopoverItem,
+    PopoverItem,
+    UrlPopoverItem,
+} from './pie/popover-item.ts';
 
 const screenDimensions = Dimensions.get('screen');
 
@@ -69,45 +71,40 @@ export default function App() {
         Point | undefined
     >();
     const [hoveredItem, setHoveredItem] = useState<PieItem>();
-    const [currentLayerId, setCurrentLayerId] = useState(1);
     const [isCustomizing, setIsCustomizing] = useState(false);
     const shortcuts = useShortcuts(
         hoveredItem?.type === 'app' ? hoveredItem.packageName : undefined,
     );
     const [currentDropDownTouchPoint, setCurrentDropDownTouchPoint] =
         useState<Point>();
-    const [selectedShortcut, setSelectedShortcut] = useState<Shortcut>();
+    const [selectedPopoverItem, setSelectedPopoverItem] =
+        useState<PopoverItem>();
+    const [popoverAnchor, setPopoverAnchor] = useState<Point | undefined>(
+        undefined,
+    );
+    const [popoverItems, setPopoverItems] = useState<PopoverItem[]>([]);
 
     useEffect(() => {
         if (shortcuts.length === 0) {
-            setShortcutDropdownAnchor(undefined);
+            setPopoverAnchor(undefined);
         }
     }, [shortcuts]);
-
-    const [shortcutDropdownAnchor, setShortcutDropdownAnchor] = useState<
-        Point | undefined
-    >(undefined);
 
     const shouldShowPie = useMemo(() => {
         return center != null;
     }, [center]);
-
-    const currentLayer = useMemo<Layer | undefined>(() => {
-        return layers.find(layer => layer.id === currentLayerId);
-    }, [currentLayerId, layers]);
 
     /**
      * Resets the state. Switches back to the home layer and sets all the gesture-related states back to initial.
      */
     const reset = useCallback(() => {
         setHoveredItem(undefined);
-        setCurrentLayerId(layers.find(l => l.isBaseLayer)?.id ?? 1);
         setCurrentTouchPoint(undefined);
         setCenter(undefined);
-        setSelectedShortcut(undefined);
-        setShortcutDropdownAnchor(undefined);
+        setSelectedPopoverItem(undefined);
+        setPopoverAnchor(undefined);
         setCurrentDropDownTouchPoint(undefined);
-    }, [layers]);
+    }, []);
 
     const pieItems = useMemo(() => {
         const tp = currentTouchPoint ?? center;
@@ -116,49 +113,21 @@ export default function App() {
             return [];
         }
 
+        const baseLayer = layers.find(l => l.isBaseLayer);
+
         const items: PieItem[] = [];
 
-        if (
-            currentLayerId === BROWSER_ACTIONS_RESERVED_LAYER_ID &&
-            defaultBrowser != null
-        ) {
-            items.push(
-                ...browserActions.map(action =>
-                    createDefaultBrowserActionPieItem(
-                        `pie-browser-action-${action.url}`,
-                        '#ffffff',
-                        action.url,
-                        action.image,
-                    ),
-                ),
-            );
-
-            const browserApp = toPieItem(defaultBrowser, layers, apps);
-            if (browserApp) {
-                items.push(browserApp);
-            }
-        } else {
-            items.push(
-                ...((currentLayer?.items ?? []) as LayerItem[])
-                    // convert items from the layer configuration into internal pie items.
-                    // Either an app link or a link to another pie layer.
-                    .map(i => toPieItem(i, layers, apps))
-                    // filter out apps that could not have been resolved
-                    .filter((i: PieItem | undefined): i is PieItem => !!i),
-            );
-        }
+        items.push(
+            ...((baseLayer?.items ?? []) as LayerItem[])
+                // convert items from the layer configuration into internal pie items.
+                // Either an app link or a link to another pie layer.
+                .map(i => toPieItem(i, layers, apps))
+                // filter out apps that could not have been resolved
+                .filter((i: PieItem | undefined): i is PieItem => !!i),
+        );
 
         return scaleItems(tp, center, calculateItemPositions(center, items));
-    }, [
-        apps,
-        browserActions,
-        center,
-        currentLayer?.items,
-        currentLayerId,
-        currentTouchPoint,
-        defaultBrowser,
-        layers,
-    ]);
+    }, [apps, center, currentTouchPoint, layers]);
 
     const isCloseToBorder = useCallback(
         (point: Point) =>
@@ -187,23 +156,27 @@ export default function App() {
             return;
         }
 
-        if (selectedShortcut != null) {
+        if (selectedPopoverItem?.type === 'shortcut') {
             void ShortcutUtils.launchShortcut(
-                selectedShortcut.package,
-                selectedShortcut.id,
+                selectedPopoverItem.packageName,
+                selectedPopoverItem.id,
             );
-        } else if (hoveredItem.type === 'app') {
-            RNLauncherKitHelper.launchApplication(hoveredItem.packageName);
+        } else if (selectedPopoverItem?.type === 'app') {
+            RNLauncherKitHelper.launchApplication(
+                selectedPopoverItem.packageName,
+            );
         } else if (
-            hoveredItem.type === 'browserAction' &&
+            selectedPopoverItem?.type === 'url' &&
             defaultBrowser != null
         ) {
             RNLauncherKitHelper.launchApplication(defaultBrowser, {
                 action: IntentAction.VIEW,
-                data: hoveredItem.url,
+                data: selectedPopoverItem.url,
             });
+        } else if (hoveredItem.type === 'app') {
+            RNLauncherKitHelper.launchApplication(hoveredItem.packageName);
         }
-    }, [reset, hoveredItem, selectedShortcut, defaultBrowser]);
+    }, [reset, hoveredItem, selectedPopoverItem, defaultBrowser]);
 
     const onPanFailed = useCallback(
         (point: Point) => {
@@ -251,7 +224,7 @@ export default function App() {
                 y: event.nativeEvent.y,
             };
 
-            if (shortcutDropdownAnchor) {
+            if (popoverAnchor) {
                 setCurrentDropDownTouchPoint(touchPoint);
                 return;
             } else {
@@ -281,11 +254,26 @@ export default function App() {
                 setHoveredItem(undefined);
             }
         },
-        [shortcutDropdownAnchor, pieItems, center, hoveredItem?.id],
+        [popoverAnchor, pieItems, center, hoveredItem?.id],
     );
 
-    const timeout = useRef<NodeJS.Timeout>(null);
-
+    const getPopoverAnchorPosition = (item: PieItem, menuHeight: number) => {
+        const isTopHalf = item.y < screenDimensions.height / 2;
+        return {
+            x: clamp(
+                item.x - MENU_WIDTH / 2,
+                0,
+                screenDimensions.width - MENU_WIDTH,
+            ),
+            y: isTopHalf
+                ? clamp(item.y + 30, 0, screenDimensions.height - menuHeight)
+                : clamp(
+                      item.y - menuHeight - 30,
+                      0,
+                      screenDimensions.height - menuHeight,
+                  ),
+        };
+    };
     const handleShortcutsLongPress = useCallback(
         (item: AppPieItem) => {
             if (shortcuts.length <= 0) {
@@ -294,40 +282,55 @@ export default function App() {
 
             Vibration.vibrate(10);
 
-            const isTopHalf = item.y < screenDimensions.height / 2;
             const menuHeight = MENU_ITEM_HEIGHT * shortcuts.length;
-            setShortcutDropdownAnchor({
-                x: clamp(
-                    item.x - MENU_WIDTH / 2,
-                    0,
-                    screenDimensions.width - MENU_WIDTH,
-                ),
-                y: isTopHalf
-                    ? clamp(
-                          item.y + 30,
-                          0,
-                          screenDimensions.height - menuHeight,
-                      )
-                    : clamp(
-                          item.y - menuHeight - 30,
-                          0,
-                          screenDimensions.height - menuHeight,
-                      ),
-            });
+
+            setPopoverItems(
+                shortcuts.map(s => ({
+                    type: 'shortcut',
+                    id: s.id,
+                    icon: s.icon,
+                    packageName: s.package,
+                    label: s.label,
+                })),
+            );
+
+            setPopoverAnchor(getPopoverAnchorPosition(item, menuHeight));
         },
-        [shortcuts.length],
+        [shortcuts],
     );
 
-    const handleLayerSwitchLongPress = (item: LayerSwitchPieItem) => {
-        setCurrentLayerId(item.targetLayerId);
-        setCenter(
-            getSafePosition({
-                x: item.x,
-                y: item.y,
-            }),
-        );
-        setHoveredItem(undefined);
-    };
+    const handleLayerSwitchLongPress = useCallback(
+        (item: LayerSwitchPieItem) => {
+            const items = (
+                layers.find(l => l.id === item.targetLayerId)?.items ?? []
+            )
+                .map(layerItem => {
+                    const app = apps.find(x => x.packageName === layerItem);
+
+                    if (!app) {
+                        return undefined;
+                    }
+
+                    return {
+                        type: 'app',
+                        label: app.label,
+                        icon: app.icon,
+                        id: `dropdown-app-${layerItem}`,
+                        packageName: layerItem,
+                    } as AppPopoverItem;
+                })
+                .filter(i => !!i) as AppPopoverItem[];
+
+            setPopoverItems(items);
+
+            setPopoverAnchor(
+                getPopoverAnchorPosition(item, MENU_ITEM_HEIGHT * items.length),
+            );
+        },
+        [apps, layers],
+    );
+
+    const timeout = useRef<NodeJS.Timeout>(null);
 
     /**
      * When a link item is hovered for 300ms, the next pie is rendered.
@@ -348,15 +351,29 @@ export default function App() {
             );
         } else if (
             hoveredItem?.type === 'app' &&
-            hoveredItem.packageName === defaultBrowser &&
-            currentLayerId !== BROWSER_ACTIONS_RESERVED_LAYER_ID
+            hoveredItem.packageName === defaultBrowser
         ) {
             timeout.current = setTimeout(() => {
-                setCurrentLayerId(BROWSER_ACTIONS_RESERVED_LAYER_ID);
-                setCenter(
-                    getSafePosition({ x: hoveredItem.x, y: hoveredItem.y }),
+                const items = browserActions
+                    .map(browserAction => {
+                        return {
+                            type: 'url',
+                            icon: browserAction.image,
+                            id: `dropdown-url-${browserAction.url}`,
+                            url: browserAction.url,
+                            label: browserAction.label,
+                        } as UrlPopoverItem;
+                    })
+                    .filter(i => !!i) as UrlPopoverItem[];
+
+                setPopoverItems(items);
+
+                setPopoverAnchor(
+                    getPopoverAnchorPosition(
+                        hoveredItem,
+                        MENU_ITEM_HEIGHT * items.length,
+                    ),
                 );
-                setHoveredItem(undefined);
             }, 300);
         }
 
@@ -365,7 +382,13 @@ export default function App() {
                 clearTimeout(timeout.current);
             }
         };
-    }, [currentLayerId, defaultBrowser, handleShortcutsLongPress, hoveredItem]);
+    }, [
+        browserActions,
+        defaultBrowser,
+        handleLayerSwitchLongPress,
+        handleShortcutsLongPress,
+        hoveredItem,
+    ]);
 
     const getPieItem = useCallback(
         (item: PieItem) => {
@@ -379,8 +402,6 @@ export default function App() {
                             link={item}
                         />
                     );
-                case 'browserAction':
-                    return <BrowserActionItem action={item} />;
                 default:
                     return null;
             }
@@ -388,17 +409,17 @@ export default function App() {
         [hoveredItem?.id],
     );
 
-    const prevSelectedRef = useRef<Shortcut | undefined>(undefined);
+    const prevSelectedRef = useRef<PopoverItem | undefined>(undefined);
 
     useEffect(() => {
-        if (!shortcutDropdownAnchor || !currentDropDownTouchPoint) {
+        if (!popoverAnchor || !currentDropDownTouchPoint) {
             return;
         }
 
         // Extract dropdown box coordinates
-        const { x: boxX, y: boxY } = shortcutDropdownAnchor;
+        const { x: boxX, y: boxY } = popoverAnchor;
         const boxWidth = MENU_WIDTH;
-        const boxHeight = MENU_ITEM_HEIGHT * shortcuts.length;
+        const boxHeight = MENU_ITEM_HEIGHT * popoverItems.length;
         // Define extended bounds (80px for Y, 50px for X)
         const extendedBox = {
             left: boxX - 50,
@@ -414,7 +435,7 @@ export default function App() {
             currentDropDownTouchPoint.y >= extendedBox.top &&
             currentDropDownTouchPoint.y <= extendedBox.bottom;
 
-        let newSelected;
+        let newSelected: PopoverItem | undefined;
 
         if (isThumbInsideExtendedBox) {
             // Check if thumb is inside the actual menu
@@ -428,21 +449,21 @@ export default function App() {
                 const index = Math.floor(
                     (currentDropDownTouchPoint.y - boxY) / MENU_ITEM_HEIGHT,
                 );
-                newSelected = shortcuts[index];
+                newSelected = popoverItems[index];
             }
         } else {
             // If thumb is outside extended bounds, close the menu
-            setShortcutDropdownAnchor(undefined);
+            setPopoverAnchor(undefined);
             setCurrentDropDownTouchPoint(undefined);
-            setSelectedShortcut(undefined);
+            setSelectedPopoverItem(undefined);
         }
 
         // Prevent unnecessary updates
         if (prevSelectedRef.current !== newSelected) {
             prevSelectedRef.current = newSelected;
-            setSelectedShortcut(newSelected);
+            setSelectedPopoverItem(newSelected);
         }
-    }, [currentDropDownTouchPoint, shortcutDropdownAnchor, shortcuts]);
+    }, [currentDropDownTouchPoint, popoverAnchor, popoverItems]);
 
     if (isCustomizing) {
         return (
@@ -469,11 +490,11 @@ export default function App() {
                             'flex-1 justify-center items-center relative'
                         }
                     >
-                        {shortcutDropdownAnchor != null && (
-                            <ShortcutDropdownMenu
-                                anchor={shortcutDropdownAnchor}
-                                shortcuts={shortcuts}
-                                selectedShortcut={selectedShortcut}
+                        {popoverAnchor != null && (
+                            <PopoverMenu
+                                anchor={popoverAnchor}
+                                items={popoverItems}
+                                selectedPopoverItem={selectedPopoverItem}
                             />
                         )}
                         {shouldShowPie &&
@@ -481,9 +502,9 @@ export default function App() {
                                 <View
                                     className={clsx(
                                         'absolute rounded-full -translate-x-1/2 -translate-y-1/2 justify-center items-center',
-                                        shortcutDropdownAnchor != null &&
+                                        popoverAnchor != null &&
                                             item.id !== hoveredItem?.id &&
-                                            'opacity-20',
+                                            'opacity-40',
                                     )}
                                     style={[
                                         { left: item.x, top: item.y },
