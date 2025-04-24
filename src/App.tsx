@@ -78,6 +78,10 @@ export default function App() {
         useState<Point>();
     const [selectedShortcut, setSelectedShortcut] = useState<Shortcut>();
 
+    const shouldShowAllApps = useMemo(() => {
+        return currentLayerId === -1;
+    }, [currentLayerId]);
+
     useEffect(() => {
         if (shortcuts.length === 0) {
             setShortcutDropdownAnchor(undefined);
@@ -89,8 +93,8 @@ export default function App() {
     >(undefined);
 
     const shouldShowPie = useMemo(() => {
-        return center != null;
-    }, [center]);
+        return center != null && currentLayerId !== -1;
+    }, [center, currentLayerId]);
 
     const currentLayer = useMemo<Layer | undefined>(() => {
         return layers.find(layer => layer.id === currentLayerId);
@@ -146,9 +150,33 @@ export default function App() {
                     // filter out apps that could not have been resolved
                     .filter((i: PieItem | undefined): i is PieItem => !!i),
             );
+
+            if (shouldShowAllApps) {
+                items.push(
+                    ...apps.map(a =>
+                        createDefaultAppPieItem(
+                            'app-all-' + a.packageName,
+                            a.icon,
+                            a.packageName,
+                        ),
+                    ),
+                );
+            } else {
+                items.push(
+                    createDefaultLayerSwitchPieItem('all-apps', '#fff', -1),
+                );
+            }
         }
 
-        return scaleItems(tp, center, calculateItemPositions(center, items));
+        return scaleItems(
+            tp,
+            center,
+            calculateItemPositions(
+                center,
+                items,
+                shouldShowAllApps ? 'grid' : 'circle',
+            ),
+        );
     }, [
         apps,
         browserActions,
@@ -158,6 +186,7 @@ export default function App() {
         currentTouchPoint,
         defaultBrowser,
         layers,
+        shouldShowAllApps,
     ]);
 
     const isCloseToBorder = useCallback(
@@ -271,7 +300,10 @@ export default function App() {
                     ? distanceClosestItemToTouchPoint <= HOVER_THRESHOLD
                     : true;
 
-                if (shouldHover && closestItem.id !== hoveredItem?.id) {
+                if (
+                    (shouldHover || shouldShowAllApps) &&
+                    closestItem.id !== hoveredItem?.id
+                ) {
                     setHoveredItem(closestItem);
                     Vibration.vibrate(10);
                 } else if (!shouldHover) {
@@ -281,7 +313,13 @@ export default function App() {
                 setHoveredItem(undefined);
             }
         },
-        [shortcutDropdownAnchor, pieItems, center, hoveredItem?.id],
+        [
+            center,
+            hoveredItem?.id,
+            pieItems,
+            shortcutDropdownAnchor,
+            shouldShowAllApps,
+        ],
     );
 
     const timeout = useRef<NodeJS.Timeout>(null);
@@ -464,11 +502,7 @@ export default function App() {
                     onGestureEvent={onGestureEvent}
                     onHandlerStateChange={onHandlerStateChange}
                 >
-                    <View
-                        className={
-                            'flex-1 justify-center items-center relative'
-                        }
-                    >
+                    <View className={'flex-1 relative overflow-y-visible'}>
                         {shortcutDropdownAnchor != null && (
                             <ShortcutDropdownMenu
                                 anchor={shortcutDropdownAnchor}
@@ -476,6 +510,25 @@ export default function App() {
                                 selectedShortcut={selectedShortcut}
                             />
                         )}
+                        {shouldShowAllApps &&
+                            pieItems.map(item => (
+                                <View
+                                    className={clsx(
+                                        'absolute rounded-full -translate-x-1/2 -translate-y-1/2 justify-center items-center',
+                                        item.id !== hoveredItem?.id &&
+                                            'opacity-60',
+                                    )}
+                                    key={item.id}
+                                    style={{
+                                        left: item.x,
+                                        top: item.y,
+                                        width: PIE_ITEM_BASE_SIZE,
+                                        height: PIE_ITEM_BASE_SIZE,
+                                    }}
+                                >
+                                    {getPieItem(item)}
+                                </View>
+                            ))}
                         {shouldShowPie &&
                             pieItems.map(item => (
                                 <View
