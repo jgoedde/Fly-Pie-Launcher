@@ -25,7 +25,7 @@ export function useInstalledApps(): {
     }, []);
 
     const queryApps = useCallback(async () => {
-        const allApps = await InstalledApps.getApps({
+        const allApps = await InstalledApps.getSortedApps({
             includeVersion: false,
             includeAccentColor: true,
         });
