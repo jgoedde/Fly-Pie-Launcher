@@ -5,7 +5,15 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import { Dimensions, Vibration, View } from 'react-native';
+import {
+    BackHandler,
+    Dimensions,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    Vibration,
+    View,
+} from 'react-native';
 import {
     GestureEvent,
     GestureHandlerRootView,
@@ -77,6 +85,7 @@ export default function App() {
     const [currentDropDownTouchPoint, setCurrentDropDownTouchPoint] =
         useState<Point>();
     const [selectedShortcut, setSelectedShortcut] = useState<Shortcut>();
+    const [showsAllApps, setShowsAllApps] = useState<boolean>(false);
 
     useEffect(() => {
         if (shortcuts.length === 0) {
@@ -107,6 +116,7 @@ export default function App() {
         setSelectedShortcut(undefined);
         setShortcutDropdownAnchor(undefined);
         setCurrentDropDownTouchPoint(undefined);
+        setShowsAllApps(false);
     }, [layers]);
 
     const pieItems = useMemo(() => {
@@ -211,6 +221,8 @@ export default function App() {
                 setIsCustomizing(true);
             } else {
                 reset();
+
+                setShowsAllApps(true);
             }
         },
         [isCloseToBorder, reset],
@@ -218,6 +230,10 @@ export default function App() {
 
     const onHandlerStateChange = useCallback(
         (event: HandlerStateChangeEvent<PanGestureHandlerEventPayload>) => {
+            if (showsAllApps) {
+                return;
+            }
+
             const point = { x: event.nativeEvent.x, y: event.nativeEvent.y };
             const state = event.nativeEvent.state;
 
@@ -229,7 +245,7 @@ export default function App() {
                 onPanFailed(point);
             }
         },
-        [onPanEnd, onPanFailed, onPanStart],
+        [onPanEnd, onPanFailed, onPanStart, showsAllApps],
     );
 
     useEffect(
@@ -246,6 +262,10 @@ export default function App() {
      */
     const onGestureEvent = useCallback(
         (event: GestureEvent<PanGestureHandlerEventPayload>) => {
+            if (showsAllApps) {
+                return;
+            }
+
             const touchPoint = {
                 x: event.nativeEvent.x,
                 y: event.nativeEvent.y,
@@ -281,7 +301,13 @@ export default function App() {
                 setHoveredItem(undefined);
             }
         },
-        [shortcutDropdownAnchor, pieItems, center, hoveredItem?.id],
+        [
+            showsAllApps,
+            shortcutDropdownAnchor,
+            pieItems,
+            center,
+            hoveredItem?.id,
+        ],
     );
 
     const timeout = useRef<NodeJS.Timeout>(null);
@@ -444,6 +470,21 @@ export default function App() {
         }
     }, [currentDropDownTouchPoint, shortcutDropdownAnchor, shortcuts]);
 
+    useEffect(() => {
+        const backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            () => {
+                if (showsAllApps) {
+                    reset();
+                }
+                return true;
+            },
+        );
+        return () => {
+            backHandler.remove(); // Remove the EventListener
+        };
+    }, [reset, showsAllApps]);
+
     if (isCustomizing) {
         return (
             <View className={'flex-1'}>
@@ -457,6 +498,76 @@ export default function App() {
         );
     }
 
+    if (showsAllApps) {
+        return (
+            <ScrollView
+                horizontal={false}
+                showsVerticalScrollIndicator
+                className={'w-full flex-grow'}
+                contentContainerClassName={'justify-center items-center py-14'}
+                contentContainerStyle={{
+                    flexGrow: 1,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 22,
+                }}
+            >
+                {apps.map(app => (
+                    <TouchableOpacity
+                        key={app.packageName}
+                        onPress={() => {
+                            reset();
+                            RNLauncherKitHelper.launchApplication(
+                                app.packageName,
+                            );
+                        }}
+                    >
+                        <View className={'flex flex-col gap-y-3'}>
+                            <View
+                                className={'rounded-full'}
+                                style={{
+                                    width: 111,
+                                    height: 64,
+                                }}
+                            >
+                                <AppItem
+                                    pieItem={{
+                                        x: 0,
+                                        y: 0,
+                                        id: app.packageName,
+                                        packageName: app.packageName,
+                                        type: 'app',
+                                        scaleFactor: 1,
+                                        iconBase64: app.icon,
+                                    }}
+                                    style={{
+                                        width: 64,
+                                        height: 64,
+                                    }}
+                                />
+                            </View>
+                            <View className={'h-12'}>
+                                <Text
+                                    style={{
+                                        borderColor: app.accentColor ?? '#000',
+                                        maxWidth: 111,
+                                        /* width: 44,*/
+                                    }}
+                                    numberOfLines={1}
+                                    className={
+                                        'rounded-md mx-auto text-center bg-black text-white px-3 py-1 border-2'
+                                    }
+                                >
+                                    {app.label}
+                                </Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+        );
+    }
+
     return (
         <View className={'flex-1'}>
             <GestureHandlerRootView>
@@ -464,11 +575,7 @@ export default function App() {
                     onGestureEvent={onGestureEvent}
                     onHandlerStateChange={onHandlerStateChange}
                 >
-                    <View
-                        className={
-                            'flex-1 justify-center items-center relative'
-                        }
-                    >
+                    <View className={'flex-1 relative'}>
                         {shortcutDropdownAnchor != null && (
                             <ShortcutDropdownMenu
                                 anchor={shortcutDropdownAnchor}
