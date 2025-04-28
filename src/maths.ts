@@ -14,25 +14,8 @@ export const HOVER_THRESHOLD = 30; // Max distance to trigger hover effect
 export function calculateItemPositions(
     center: Point,
     items: PieItem[],
-    alignment: 'circle' | 'grid',
 ): PieItem[] {
-    const ITEMS_PER_ROW = 5; // Number of items per row in grid alignment
-
     return items.map((item, i) => {
-        if (alignment === 'grid') {
-            const row = Math.floor(i / ITEMS_PER_ROW);
-            const col = i % ITEMS_PER_ROW;
-
-            const x = col * 80 + 50;
-            const y = row * 77 + 80;
-
-            return {
-                ...item,
-                x,
-                y,
-            };
-        }
-
         const angle = (i / items.length) * (2 * Math.PI) - Math.PI / 2; // Start from top (12 o'clock)
 
         return {
