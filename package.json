@@ -1,6 +1,6 @@
 {
     "name": "pie-launcher",
-    "version": "0.0.6",
+    "version": "0.1.1-alpha",
     "private": true,
     "scripts": {
         "android": "react-native run-android",
