@@ -82,8 +82,8 @@ android {
         applicationId "com.pielauncher"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "0.1.1-alpha"
+        versionCode 9
+        versionName "0.2.0-alpha"
     }
     signingConfigs {
         debug {
