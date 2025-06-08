@@ -24,17 +24,17 @@ An Android launcher that lets you navigate within a pie menu, allowing you to us
 
 ## Roadmap
 
-- [x] Show a pie containing list of apps
-- [x] Add layer navigation links within the pie to allow grouping/categorization of apps
-- [x] Persist layer configuration
-- [x] Add basic layer editing via JSON
-- [x] Browsers should have dedicated search action using the search engine
-- [ ] Make layers properly customizable via UI
-- [ ] Add sweet animations
-- [ ] Build alpha release APK for public use -- **v0.1**
-- [x] A one-tap gesture displays a grid of all your apps. The app below the location you tap will open.
-- [ ] Opt-In for themed app icons
-- [ ] Widgets support
+-   [x] Show a pie containing list of apps
+-   [x] Add layer navigation links within the pie to allow grouping/categorization of apps
+-   [x] Persist layer configuration
+-   [x] Add basic layer editing via JSON
+-   [x] Browsers should have dedicated search action using the search engine
+-   [ ] Make layers properly customizable via UI
+-   [ ] Add sweet animations
+-   [ ] Build alpha release APK for public use -- **v0.1**
+-   [x] A one-tap gesture displays a grid of all your apps. The app below the location you tap will open.
+-   [ ] Opt-In for themed app icons
+-   [ ] Widgets support
 
 ## Developing
 
@@ -42,10 +42,10 @@ An Android launcher that lets you navigate within a pie menu, allowing you to us
 
 1. Node >= 18 is installed
 2. A working installation of Android Studio.
-	1. Android build tools 35.0.0
-	2. minimum android 7.0 device or emulator (API level 24, target API level 35)
-	3. OpenJDK v20
-	4. Kotlin >=2
+    1. Android build tools 35.0.0
+    2. minimum android 7.0 device or emulator (API level 24, target API level 35)
+    3. OpenJDK v20
+    4. Kotlin >=2
 3. Preferably have an Android device connected via USB. Enable USB debugging beforehand.
 
 ### Steps
@@ -58,7 +58,7 @@ cd Fly-Pie-Launcher
 npm i
 ```
 
-*Optional*: make sure all required environmental variables are set by running
+_Optional_: make sure all required environmental variables are set by running
 
 ```sh
 npx react-native doctor
