@@ -26,6 +26,8 @@ export function useInstalledApps(): {
     const queryApps = useCallback(async () => {
         const allApps = await ShortcutUtils.getRunnableApps();
 
+        allApps.sort((a, b) => a.label.localeCompare(b.label));
+
         setAppDetails(allApps);
     }, []);
 
