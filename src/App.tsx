@@ -67,7 +67,7 @@ import {
 const screenDimensions = Dimensions.get('screen');
 
 export default function App() {
-    const { layers } = useLayerConfig();
+    const { layers: oldLayers } = useLayerConfig();
     const { apps, defaultBrowser } = useInstalledApps();
     const { actions: browserActions } = useBrowserActions();
 
@@ -85,6 +85,15 @@ export default function App() {
         useState<Point>();
     const [selectedShortcut, setSelectedShortcut] = useState<Shortcut>();
     const [showsAllApps, setShowsAllApps] = useState<boolean>(false);
+
+    const layers = useMemo(() => {
+        return oldLayers.map(l => ({
+            ...l,
+            color:
+                apps.find(x => x.isMonochromeIcon && x.backgroundColor != null)
+                    ?.backgroundColor ?? l.color,
+        }));
+    }, [apps, oldLayers]);
 
     useEffect(() => {
         if (shortcuts.length === 0) {
