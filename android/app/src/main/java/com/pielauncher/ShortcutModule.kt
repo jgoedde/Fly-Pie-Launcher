@@ -207,9 +207,7 @@ class ShortcutModule(reactContext: ReactApplicationContext) :
             val resultArray = Arguments.createArray()
             val installedPackages = pm.getInstalledPackages(0)
             val (accentColor, backgroundColor) = getAccentAndBackgroundColor(reactApplicationContext)
-            val activities = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-            val sortedActivities = activities.sortedBy { it.activityInfo.packageName }
-            for (resolveInfo in sortedActivities) {
+            for (resolveInfo in pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)) {
                 val appInfo = resolveInfo.activityInfo
                 val packageName = appInfo.packageName
                 val label = pm.getApplicationLabel(appInfo.applicationInfo).toString()
