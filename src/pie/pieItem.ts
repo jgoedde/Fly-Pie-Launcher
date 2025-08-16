@@ -21,12 +21,18 @@ export type AppPieItem = BasePieItem & {
     iconBase64: string;
     packageName: PackageName;
     type: 'app';
+    isMonochromeIcon: boolean;
+    accentColor?: string;
+    backgroundColor?: string;
 };
 
 export function createDefaultAppPieItem(
     id: string,
     iconBase64: string,
     packageName: PackageName,
+    isMonochromeIcon: boolean,
+    accentColor?: string,
+    backgroundColor?: string,
 ): AppPieItem {
     return {
         iconBase64,
@@ -36,6 +42,9 @@ export function createDefaultAppPieItem(
         x: 0,
         type: 'app',
         id,
+        isMonochromeIcon,
+        backgroundColor,
+        accentColor,
     };
 }
 

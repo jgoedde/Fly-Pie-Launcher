@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
-import { InstalledApps } from 'react-native-launcher-kit';
 import { useMMKVStorage } from 'react-native-mmkv-storage';
 import { storage } from '../storage.ts';
 import { BrowserUtils } from '../BrowserUtils.ts';
 import { PackageName } from './package-name.ts';
+import { AppDetail, ShortcutUtils } from '../ShortcutUtils.ts';
 
 export function useInstalledApps(): {
     apps: AppDetail[];
@@ -25,10 +24,7 @@ export function useInstalledApps(): {
     }, []);
 
     const queryApps = useCallback(async () => {
-        const allApps = await InstalledApps.getSortedApps({
-            includeVersion: false,
-            includeAccentColor: true,
-        });
+        const allApps = await ShortcutUtils.getRunnableApps();
 
         setAppDetails(allApps);
     }, []);

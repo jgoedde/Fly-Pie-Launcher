@@ -18,8 +18,17 @@ export function AppItem({
                 // @ts-ignore
                 ...style,
                 transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
+                ...(pieItem.isMonochromeIcon &&
+                    pieItem.backgroundColor != null && {
+                        backgroundColor: pieItem.backgroundColor,
+                        borderRadius: 100,
+                    }),
             }}
             src={pieItem.iconBase64}
+            {...(pieItem.isMonochromeIcon &&
+                pieItem.accentColor != null && {
+                    tintColor: pieItem.accentColor,
+                })}
         />
     );
 }

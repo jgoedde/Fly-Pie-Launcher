@@ -38,7 +38,6 @@ import {
     LayerItem,
     useLayerConfig,
 } from './pie/layers/use-layer-config.ts';
-import { AppDetail } from 'react-native-launcher-kit/typescript/Interfaces/InstalledApps';
 import PieCustomizer from './pie/PieCustomizer.tsx';
 import { LayerSwitchItem } from './pie/LayerSwitchItem.tsx';
 import { AppItem } from './pie/AppItem.tsx';
@@ -57,7 +56,7 @@ import {
 import './global.css';
 import { useShortcuts } from './pie/shortcuts/use-shortcuts.ts';
 import clsx from 'clsx';
-import { Shortcut, ShortcutUtils } from './ShortcutUtils.ts';
+import { AppDetail, Shortcut, ShortcutUtils } from './ShortcutUtils.ts';
 import { clamp } from 'react-native-reanimated';
 import {
     MENU_ITEM_HEIGHT,
@@ -514,7 +513,7 @@ export default function App() {
             >
                 {apps.map(app => (
                     <TouchableOpacity
-                        key={app.packageName}
+                        key={`app-list-item-${app.packageName}`}
                         onPress={() => {
                             reset();
                             RNLauncherKitHelper.launchApplication(
@@ -539,6 +538,9 @@ export default function App() {
                                         type: 'app',
                                         scaleFactor: 1,
                                         iconBase64: app.icon,
+                                        accentColor: app.accentColor,
+                                        isMonochromeIcon: app.isMonochromeIcon,
+                                        backgroundColor: app.backgroundColor,
                                     }}
                                     style={{
                                         width: 64,
@@ -605,7 +607,7 @@ export default function App() {
                                             ),
                                         },
                                     ]}
-                                    key={item.id}
+                                    key={`pie-item-${item.id}`}
                                 >
                                     {getPieItem(item)}
                                 </View>
@@ -648,6 +650,9 @@ function toPieItem(
         `pie-app-${appDetail.packageName}`,
         appDetail.icon,
         appDetail.packageName,
+        appDetail.isMonochromeIcon,
+        appDetail.accentColor,
+        appDetail.backgroundColor,
     );
 }
 
